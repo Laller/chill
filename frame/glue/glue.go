@@ -1,0 +1,112 @@
+package glue
+
+import(
+	"github.com/opesun/chill/frame/misc/convert"
+	"github.com/opesun/chill/frame/mod"
+	"github.com/opesun/chill/frame/lang"
+	"github.com/opesun/chill/frame/lang/speaker"
+	"net/url"
+	"fmt"
+	iface "github.com/opesun/chill/frame/interfaces"
+	"github.com/opesun/chill/frame/verbinfo"
+)
+
+type Descriptor struct {
+	Route 			*lang.Route
+	Sentence 		*lang.Sentence
+	VerbLocation	string						// Name of the module with the verb.
+	nounOpt			map[string]interface{}
+}
+
+func moduleHasVerb(modname string, verbname string) bool {
+	mo := mod.NewModule(modname)
+	if !mo.Exists() {
+		return false
+	}
+	return mo.Instance().HasMethod(verbname)
+}
+
+func Identify(path string, nouns map[string]interface{}, inp url.Values) (*Descriptor, error) {
+	desc := &Descriptor{}
+	r, err := lang.NewRoute(path, inp)
+	if err != nil {
+		return nil, err
+	}
+	desc.Route = r
+	speaker := speaker.New(moduleHasVerb, nouns)
+	sentence, err := lang.NewSentence(r, speaker)
+	if err != nil {
+		return nil, err
+	}
+	desc.Sentence = sentence
+	nounOpt, has := nouns[sentence.Noun].(map[string]interface{})
+	if !has {
+		return nil, fmt.Errorf("Noun opt is missing or not a map.")
+	}
+	desc.nounOpt = nounOpt
+	loc := speaker.VerbLocation(sentence.Noun, sentence.Verb)
+	desc.VerbLocation = loc
+	return desc, nil
+}
+
+// Returns error if input is not valid according to the rules found in d.nouns
+func (d *Descriptor) CreateInputs(filterCreator func(string, map[string]interface{})iface.Filter) ([]interface{}, error) {
+	module := mod.NewModule(d.VerbLocation)
+	if !module.Exists() {
+		return nil, fmt.Errorf("Module named %v does not exist.", d.VerbLocation)
+	}
+	ins := module.Instance()
+	verb := ins.Method(d.Sentence.Verb)
+	an := verbinfo.NewAnalyzer(verb)
+	ac := an.ArgCount()
+	if len(d.Route.Queries) < ac {
+		return nil, fmt.Errorf("Not enough input to supply.")
+	}
+	if ac == 0 {
+		return nil, nil
+	}
+	fc := an.FilterCount()
+	if fc > 0 && filterCreator == nil {
+		return nil, fmt.Errorf("filterCreator is needed but it is nil.")
+	}
+	var inp []interface{}
+	var data map[string]interface{}
+	append_data := false
+	source := []map[string]interface{}{}
+	for _, v := range d.Route.Queries {
+		source = append(source, convert.URLValuesToMap(v))
+	}
+	if an.NeedsData() {
+		append_data = true
+		data = source[len(source)-1]
+		source = source[:len(source)-1]
+	}
+	if fc > 0 {
+		if fc != 1 && len(source) != fc {
+			return nil, fmt.Errorf("Got %v inputs, but method %v needs only %v filters. Currently filters can only be reduced to 1.", len(source), d.Sentence.Verb, fc)
+		}
+		filters := []iface.Filter{}
+		for i, v := range source {
+			if i == fc && d.Sentence.Verb != "Get" {
+				break
+			}
+			filters = append(filters, filterCreator(d.Route.Words[i], v))
+		}
+		filters[0] = filters[0].Clone()
+		if len(filters) > 1 {
+			filter := filters[0]
+			red, err := filter.Reduce(filters[1:]...)
+			if err != nil {
+				return nil, err
+			}
+			filters = []iface.Filter{red}
+		}
+		for _, v := range filters {
+			inp = append(inp, v)
+		}
+	}
+	if append_data {
+		inp = append(inp, data)
+	}
+	return inp, nil
+}
