@@ -146,6 +146,15 @@ func sortParams(q url.Values) map[int]url.Values {
 	return sorted
 }
 
+func hasLargerThan(q map[int]url.Values, n int) bool {
+	for i := range q {
+		if i > n {
+			return true
+		}
+	}
+	return false
+}
+
 func nextIsId(current, next string) bool {
 	//return next[1] == '-' && current[0] == next[0]
 	return len(next) == 16
@@ -186,6 +195,9 @@ func NewRoute(path string, q url.Values) (*Route, error) {
 			}
 		}
 		r.Queries[qi] = sorted[qi-skipped]
+	}
+	if hasLargerThan(sorted, len(r.Words)) {
+		return nil, fmt.Errorf("Unnecessary sorted params.")
 	}
 	return r, nil
 }

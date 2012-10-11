@@ -97,6 +97,10 @@ func (t *Top) Route() {
 	}
 }
 
+var opt_def = map[string]interface{}{
+	"composed_of": []interface{}{"jsonedit"},
+}
+
 func (t *Top) route() error {
 	uni := t.uni
 	if t.config.ServeFiles && strings.Index(uni.Paths[len(uni.Paths)-1], ".") != -1 {
@@ -110,7 +114,12 @@ func (t *Top) route() error {
 	}
 	nouns, ok := uni.Opt["nouns"].(map[string]interface{})
 	if !ok {
-		return fmt.Errorf("No nouns.")
+		nouns = map[string]interface{}{
+			"options": opt_def,
+		}
+	}
+	if _, ok := nouns["options"]; !ok {
+		nouns["options"] = opt_def
 	}
 	desc, err := glue.Identify(uni.P, nouns, uni.Req.Form)
 	if err != nil {

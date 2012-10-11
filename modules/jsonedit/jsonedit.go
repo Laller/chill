@@ -53,7 +53,7 @@ func (c *C) New() error {
 	return nil
 }
 
-var ignore = []string{"created", "modified"}
+var ignore = []string{"_id", "created", "modified"}
 
 func (c *C) Edit(a iface.Filter) (string, error) {
 	doc, err := a.FindOne()
