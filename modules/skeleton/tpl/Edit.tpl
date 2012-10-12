@@ -5,9 +5,9 @@
 <form action="{{$f.ActionPath}}" method="POST">
 	{{$f.HiddenString}}
 	{{range .main}}
-			{{.key}}<br />
-			<input name="{{$f.KeyPrefix}}{{.key}}" value="{{.value}}"/><br />
-			<br />
+		{{.key}}<br />
+		<input name="{{$f.KeyPrefix}}{{.key}}" value="{{.value}}"/><br />
+		<br />
 	{{end}}
 	<input type="submit" />
 </form>

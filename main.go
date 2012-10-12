@@ -41,7 +41,12 @@ func main() {
 	defer session.Close()
 	http.HandleFunc("/",
 	func(w http.ResponseWriter, req *http.Request) {
-		top.New(session, db, w, req, config).Route()
+		t, err := top.New(session, db, w, req, config)
+		if err != nil {
+			fmt.Fprintf(w, err.Error())
+			return
+		}
+		t.Route()
 	})
 	err = http.ListenAndServe(config.Addr+":"+config.PortNum, nil)
 	if err != nil {

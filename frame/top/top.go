@@ -11,6 +11,8 @@ import(
 	iface "github.com/opesun/chill/frame/interfaces"
 	"github.com/opesun/chill/frame/verbinfo"
 	"github.com/opesun/chill/frame/glue"
+	"github.com/opesun/jsonp"
+	"github.com/opesun/sanitize"
 	"net/http"
 	"net/url"
 	"fmt"
@@ -18,17 +20,9 @@ import(
 	"labix.org/v2/mgo"
 	"strconv"
 	"strings"
-	"runtime/debug"
 )
 
 type m map[string]interface{}
-
-var Put func(...interface{})
-
-const (
-	unfortunate_error         = "top: An unfortunate error has happened. We are deeply sorry for the inconvenience."
-	no_user_module_build_hook = "top: User module does not export BuildUser hook."
-)
 
 func (t *Top) buildUser() {
 	ret_rec := func(usr map[string]interface{}) {
@@ -37,16 +31,6 @@ func (t *Top) buildUser() {
 	ins := t.uni.NewModule("users").Instance()
 	ins.Method("Init").Call(nil, t.uni)
 	ins.Method("BuildUser").Call(ret_rec, filter.NewSimple(set.New(t.uni.Db, "users")))
-}
-
-// Just printing the stack trace to http response if a panic bubbles up all the way to top.
-func topErr() {
-	if r := recover(); r != nil {
-		fmt.Println("main:", r)
-		fmt.Println(string(debug.Stack()))
-		Put(unfortunate_error)
-		Put(fmt.Sprint("\n", r, "\n\n"+string(debug.Stack())))
-	}
 }
 
 type Top struct{
@@ -69,6 +53,7 @@ func (t *Top) Get(ret []interface{}) {
 	ran := verbinfo.NewRanalyzer(ret)
 	if ran.HadError() {
 		display.DErr(uni, ran.Error())
+		return
 	}
 	burnResults(uni.Dat, "main", ran.NonErrors())
 	display.D(uni)
@@ -87,7 +72,7 @@ func (t *Top) Post(ret []interface{}) {
 func (t *Top) Route() {
 	defer func(){
 		if r := recover(); r != nil {
-			Put(fmt.Sprint(r))
+			t.uni.Put(fmt.Sprint(r))
 			panic(fmt.Sprint(r))
 		}
 	}()
@@ -99,6 +84,38 @@ func (t *Top) Route() {
 
 var opt_def = map[string]interface{}{
 	"composed_of": []interface{}{"jsonedit"},
+}
+
+func (t *Top) validate(noun, verb string, data map[string]interface{}) (map[string]interface{}, error) {
+	scheme_map, ok := jsonp.GetM(t.uni.Opt, fmt.Sprintf("nouns.%v.verbs.%v.input", noun, verb))
+	if !ok {
+		return nil, fmt.Errorf("Can't find scheme for %v %v.", noun, verb) 
+	}
+	ex, err := sanitize.New(scheme_map)
+	if err != nil {
+		return nil, err
+	}
+	file_biz := map[string]interface{}{}
+	ex.AddFuncs(sanitize.FuncMap{
+		"file": func(dat interface{}, s sanitize.Scheme) (interface{}, error) {
+			val, has := t.uni.Req.MultipartForm.File[s.Key]
+			if !has {
+				return nil, fmt.Errorf("Can't find key amongst files.")
+			}
+			ret := []interface{}{}
+			for _, v := range val {
+				ret = append(ret, v)
+			}
+			file_biz[s.Key] = ret
+			return ret, nil
+		},
+	})
+	data, err = ex.Extract(data)
+	if err != nil {
+		return nil, err
+	}
+	data["_files"] = file_biz
+	return data, nil
 }
 
 func (t *Top) route() error {
@@ -123,14 +140,24 @@ func (t *Top) route() error {
 	}
 	desc, err := glue.Identify(uni.P, nouns, uni.Req.Form)
 	if err != nil {
-		return err
+		display.D(uni)
+		return nil
 	}
 	filterCreator := func(c string, input map[string]interface{}) iface.Filter {
 		return filter.New(set.New(uni.Db, c), input)
 	}
-	inp, err := desc.CreateInputs(filterCreator)
+	inp, data, err := desc.CreateInputs(filterCreator)
 	if err != nil {
 		return err
+	}
+	if data != nil {
+		if desc.Sentence.Noun != "options" {
+			data, err = t.validate(desc.Sentence.Noun, desc.Sentence.Verb, data)
+			if err != nil {
+				return err
+			}
+		}
+		inp = append(inp, data)
 	}
 	uni.R = desc.Route
 	uni.S = desc.Sentence
@@ -170,23 +197,25 @@ func modifiers(a url.Values) map[string]interface{} {
 	return mods
 }
 
-func New(session *mgo.Session, db *mgo.Database, w http.ResponseWriter, req *http.Request, config *config.Config) *Top {
-	Put = func(a ...interface{}) {
+func New(session *mgo.Session, db *mgo.Database, w http.ResponseWriter, req *http.Request, config *config.Config) (t *Top, err error) {
+	put := func(a ...interface{}) {
 		io.WriteString(w, fmt.Sprint(a...)+"\n")
 	}
-	defer topErr()
 	uni := &context.Uni{
 		Db:      	db,
 		W:       	w,
 		Req:     	req,
-		Put:     	Put,
+		Put:     	put,
 		Dat:     	make(map[string]interface{}),
 		Root:    	config.AbsPath,
 		P:       	req.URL.Path,
 		Paths:   	strings.Split(req.URL.Path, "/"),
 		NewModule:	mod.NewModule,
 	}
-	uni.Req.ParseForm()		// Should we handle the error return of this?
+	err = uni.Req.ParseMultipartForm(1000000)		// Should we handle the error return of this?
+	if err != nil {
+		return nil, err
+	}
 	mods := modifiers(uni.Req.Form)
 	uni.Modifiers = mods
 	// Not sure if not giving the db session to nonadmin installations increases security, but hey, one can never be too cautious, they dont need it anyway.
@@ -196,12 +225,11 @@ func New(session *mgo.Session, db *mgo.Database, w http.ResponseWriter, req *htt
 	uni.Ev = context.NewEv(uni)
 	opt, opt_str, err := queryConfig(uni.Db, req.Host, config.CacheOpt) // Tricky part about the host, see comments at main_model.
 	if err != nil {
-		Put(err.Error())
-		return &Top{}
+		return nil, err
 	}
 	uni.Req.Host = scut.Host(req.Host, opt)
 	uni.Opt = opt
 	uni.SetOriginalOpt(opt_str)
 	uni.SetSecret(config.Secret)
-	return &Top{uni,config}
+	return &Top{uni,config}, nil
 }

@@ -6,7 +6,11 @@
 	{{$f.HiddenString}}
 	{{range .main}}
 		{{.key}}<br />
-		<input name="{{$f.KeyPrefix}}{{.key}}"/><br />
+		{{if eq .type "file"}}
+			<input type="file" name="{{.key}}"/><br />	<!-- !!! -->
+		{{else}}
+			<input name="{{$f.KeyPrefix}}{{.key}}"/><br />
+		{{end}}
 		<br />
 	{{end}}
 	<input type="submit" />

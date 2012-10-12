@@ -63,26 +63,34 @@ func OrderKeys(d map[string]interface{}) []interface{} {
 	return ret
 }
 
-// TODO: ret should contain the rules, so we can display/js validate based on them too.
-// Extract module should be modified to not blow up when encountering an unkown rule field, so we can embed metainformation (like text or input, WYSIWYG editor, etc) in the rule too.
-//
+func createItem(key string, scheme interface{}, dat interface{}) map[string]interface{} {
+	item := map[string]interface{}{key: 1, "key": key}
+	item["value"] = dat
+	if sch, ok := scheme.(map[string]interface{}); ok {
+		if typ, hast := sch["type"]; hast {
+			item["type"] = typ
+		}
+		if disp, hasd := sch["disp"]; hasd {
+			item["disp"] = disp
+		}
+	}
+	return item
+}
+
 // Takes a dat map[string]interface{}, and puts every element of that which is defined in r to a slice, sorted by the keys ABC order.
 // prior parameter can override the default abc ordering, so keys in prior will be the first ones in the slice, if those keys exist.
-func abcKeys(rule map[string]interface{}, dat map[string]interface{}, prior []string) []map[string]interface{} {
+func abcKeys(scheme map[string]interface{}, dat map[string]interface{}, prior []string) []map[string]interface{} {
 	ret := []map[string]interface{}{}
 	already_in := map[string]struct{}{}
 	for _, v := range prior {
-		if _, contains := rule[v]; contains {
-			item := map[string]interface{}{v: 1, "key": v}
-			if dat != nil {
-				item["value"] = dat[v]
-			}
+		if _, contains := scheme[v]; contains {
+			item := createItem(v, scheme[v], dat[v])
 			ret = append(ret, item)
 			already_in[v] = struct{}{}
 		}
 	}
 	keys := []string{}
-	for i, v := range rule {
+	for i, v := range scheme {
 		// If the value is not false
 		if boo, is_boo := v.(bool); !is_boo || boo == true {
 			keys = append(keys, i)
@@ -91,22 +99,19 @@ func abcKeys(rule map[string]interface{}, dat map[string]interface{}, prior []st
 	sort.Strings(keys)
 	for _, v := range keys {
 		if _, in := already_in[v]; !in {
-			item := map[string]interface{}{v: 1, "key": v}
-			if dat != nil {
-				item["value"] = dat[v]
-			}
+			item := createItem(v, scheme[v], dat[v])
 			ret = append(ret, item)
 		}
 	}
 	return ret
 }
 
-// Takes an extraction/validation rule, a document and from that creates a slice which can be easily displayed by a templating engine as a html form.
+// Takes an extraction/validation scheme, a document and from that creates a slice which can be easily displayed by a templating engine as a html form.
 // Takes interface{}s and not map[string]interface{}s to include type checking here, and avoid that boilerplate in caller. 
-func RulesToFields(rule interface{}, dat interface{}) ([]map[string]interface{}, error) {
-	rm, rm_ok := rule.(map[string]interface{})
+func SchemeToFields(scheme interface{}, dat interface{}) ([]map[string]interface{}, error) {
+	rm, rm_ok := scheme.(map[string]interface{})
 	if !rm_ok {
-		return nil, fmt.Errorf("Rule is not a map[string]interface{}.")
+		return nil, fmt.Errorf("Scheme is not a map[string]interface{}.")
 	}
 	datm, datm_ok := dat.(map[string]interface{})
 	if !datm_ok && dat != nil {

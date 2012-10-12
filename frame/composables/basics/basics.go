@@ -20,11 +20,17 @@ func (b *Basics) Insert(a iface.Filter, data map[string]interface{}) (bson.Objec
 }
 
 func (b *Basics) Update(a iface.Filter, data map[string]interface{}) error {
-	return a.Update(data)
+	upd := map[string]interface{}{
+		"$set": data,
+	}
+	return a.Update(upd)
 }
 
 func (b *Basics) UpdateAll(a iface.Filter, data map[string]interface{}) error {
-	_, err := a.UpdateAll(data)
+	upd := map[string]interface{}{
+		"$set": data,
+	}
+	_, err := a.UpdateAll(upd)
 	return err
 }
 

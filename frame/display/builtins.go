@@ -10,6 +10,7 @@ import (
 	"github.com/opesun/numcon"
 	"html/template"
 	"reflect"
+	"net/url"
 	"strings"
 	"time"
 	"strconv"
@@ -131,6 +132,19 @@ func form(action_name string, r *lang.Route, s *lang.Sentence) *Form {
 	return &Form{f}
 }
 
+func _url(action_name string, r *lang.Route, s *lang.Sentence, i ...string) string {
+	f := lang.NewURLEncoder(r, s)
+	if len(i)%2 == 1 {
+		panic("Must be even.")
+	}
+	inp := url.Values{}
+	for x:=0;x<len(i)-1; {
+		inp.Add(i[x], i[x+1])
+		x = x+2
+	}
+	return f.UrlString(action_name, inp)
+}
+
 // We must recreate this map each time because map write is not threadsafe.
 // Write will happen when a hook modifies the map (hook call is not implemented yet).
 func builtins(uni *context.Uni) map[string]interface{} {
@@ -166,6 +180,9 @@ func builtins(uni *context.Uni) map[string]interface{} {
 		"fallback": fallback,
 		"type_of":	typeOf,
 		"same_kind": sameKind,
+		"url": func(action_name string, i ...string) string {
+			return _url(action_name, uni.R, uni.S, i...) 
+		},
 		"form": func(action_name string) *Form {
 			return form(action_name, uni.R, uni.S)
 		},

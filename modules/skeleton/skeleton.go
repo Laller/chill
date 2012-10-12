@@ -6,6 +6,7 @@ import(
 	"github.com/opesun/chill/frame/misc/scut"
 	iface "github.com/opesun/chill/frame/interfaces"
 	"github.com/opesun/chill/frame/composables/basics"
+	"fmt"
 )
 
 type C struct {
@@ -17,20 +18,20 @@ func (c *C) Init(uni *context.Uni) {
 	c.uni = uni
 }
 
-func (c *C) getScheme(subj string) map[string]interface{} {
-	scheme, ok := jsonp.GetM(c.uni.Opt, "nouns."+subj+".scheme")
+func (c *C) getScheme(noun, verb string) (map[string]interface{}, error) {
+	scheme, ok := jsonp.GetM(c.uni.Opt, fmt.Sprintf("nouns.%v.verbs.%v.input", noun, verb))
 	if !ok {
-		scheme = map[string]interface{}{
-			"info": 1,
-			"name": 1,
-		}
+		return nil, fmt.Errorf("Can't find scheme for noun %v, verb %v.", noun, verb)
 	}
-	return scheme
+	return scheme, nil
 }
 
 func (c *C) New(a iface.Filter) ([]map[string]interface{}, error) {
-	scheme := c.getScheme(a.Subject())
-	return scut.RulesToFields(scheme, nil)
+	scheme, err := c.getScheme(a.Subject(), "Insert")
+	if err != nil {
+		return nil, err
+	}
+	return scut.SchemeToFields(scheme, nil)
 }
 
 func (c *C) Edit(a iface.Filter) ([]map[string]interface{}, error) {
@@ -38,6 +39,9 @@ func (c *C) Edit(a iface.Filter) ([]map[string]interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	scheme := c.getScheme(a.Subject())
-	return scut.RulesToFields(scheme, doc)
+	scheme, err := c.getScheme(a.Subject(), "Update")
+	if err != nil {
+		return nil, err
+	}
+	return scut.SchemeToFields(scheme, doc)
 }

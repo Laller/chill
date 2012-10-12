@@ -50,40 +50,41 @@ func Identify(path string, nouns map[string]interface{}, inp url.Values) (*Descr
 }
 
 // Returns error if input is not valid according to the rules found in d.nouns
-func (d *Descriptor) CreateInputs(filterCreator func(string, map[string]interface{})iface.Filter) ([]interface{}, error) {
+func (d *Descriptor) CreateInputs(filterCreator func(string, map[string]interface{})iface.Filter) ([]interface{}, map[string]interface{}, error) {
 	module := mod.NewModule(d.VerbLocation)
 	if !module.Exists() {
-		return nil, fmt.Errorf("Module named %v does not exist.", d.VerbLocation)
+		return nil, nil, fmt.Errorf("Module named %v does not exist.", d.VerbLocation)
 	}
 	ins := module.Instance()
 	verb := ins.Method(d.Sentence.Verb)
 	an := verbinfo.NewAnalyzer(verb)
 	ac := an.ArgCount()
 	if len(d.Route.Queries) < ac {
-		return nil, fmt.Errorf("Not enough input to supply.")
+		return nil, nil, fmt.Errorf("Not enough input to supply.")
 	}
 	if ac == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 	fc := an.FilterCount()
 	if fc > 0 && filterCreator == nil {
-		return nil, fmt.Errorf("filterCreator is needed but it is nil.")
+		return nil, nil, fmt.Errorf("filterCreator is needed but it is nil.")
 	}
 	var inp []interface{}
 	var data map[string]interface{}
-	append_data := false
 	source := []map[string]interface{}{}
 	for _, v := range d.Route.Queries {
 		source = append(source, convert.URLValuesToMap(v))
 	}
 	if an.NeedsData() {
-		append_data = true
 		data = source[len(source)-1]
+		if data == nil {
+			data = map[string]interface{}{}		// !Important.
+		}
 		source = source[:len(source)-1]
 	}
 	if fc > 0 {
 		if fc != 1 && len(source) != fc {
-			return nil, fmt.Errorf("Got %v inputs, but method %v needs only %v filters. Currently filters can only be reduced to 1.", len(source), d.Sentence.Verb, fc)
+			return nil, nil, fmt.Errorf("Got %v inputs, but method %v needs only %v filters. Currently filters can only be reduced to 1.", len(source), d.Sentence.Verb, fc)
 		}
 		filters := []iface.Filter{}
 		for i, v := range source {
@@ -97,7 +98,7 @@ func (d *Descriptor) CreateInputs(filterCreator func(string, map[string]interfac
 			filter := filters[0]
 			red, err := filter.Reduce(filters[1:]...)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			filters = []iface.Filter{red}
 		}
@@ -105,8 +106,5 @@ func (d *Descriptor) CreateInputs(filterCreator func(string, map[string]interfac
 			inp = append(inp, v)
 		}
 	}
-	if append_data {
-		inp = append(inp, data)
-	}
-	return inp, nil
+	return inp, data, nil
 }

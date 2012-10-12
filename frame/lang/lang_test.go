@@ -112,3 +112,67 @@ func TestSentece2(t *testing.T) {
 		t.Fatal()
 	}
 }
+
+func TestURLEncoder(t *testing.T) {
+	path := "/cars"
+	query := url.Values{}
+	query.Add("favourites", "true")
+	route, err := lang.NewRoute(path, query)
+	if err != nil {
+		t.Fatal()
+	}
+	speaker := MockSpeaker{}
+	sentence, err := lang.NewSentence(route, speaker)
+	if err != nil {
+		t.Fatal()
+	}
+	if sentence.Verb != "Get" {
+		t.Fatal()
+	}
+	urle := lang.NewURLEncoder(route, sentence)
+	u1 := url.Values{}
+	u1.Add("color", "red")
+	u1.Add("color", "blue")
+	u1.Add("quality", "very high")
+	path, merged := urle.Url("paint", u1)
+	if path != "cars/paint" {
+		t.Fatal()
+	}
+	if merged["favourites"][0] != "true" || merged["1color"][0] != "red" || merged["1color"][1] != "blue" || merged["1quality"][0] != "very high" {
+		t.Fatal()
+	}
+	if len(merged) != 4 {
+		t.Fatal()
+	}
+}
+
+func TestURLEncoder1(t *testing.T) {
+	path := "/cars/ignite"
+	query := url.Values{}
+	query.Add("favourites", "true")
+	query.Add("1fake", "11")
+	route, err := lang.NewRoute(path, query)
+	if err != nil {
+		t.Fatal()
+	}
+	speaker := MockSpeaker{}
+	sentence, err := lang.NewSentence(route, speaker)
+	if err != nil {
+		t.Fatal()
+	}
+	if sentence.Verb != "Get" {
+		t.Fatal()
+	}
+	urle := lang.NewURLEncoder(route, sentence)
+	u1 := url.Values{}
+	u1.Add("color", "red")
+	u1.Add("color", "blue")
+	u1.Add("quality", "very high")
+	path, merged := urle.Url("paint", u1)
+	if path != "cars/paint" {
+		t.Fatal()
+	}
+	if merged["favourites"][0] != "true" || merged["1color"][0] != "red" || merged["1color"][1] != "blue" || merged["1quality"][0] != "very high" {
+		t.Fatal()
+	}
+}
