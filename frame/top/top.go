@@ -79,6 +79,7 @@ func (t *Top) Route() {
 	err := t.route()
 	if err != nil {
 		display.DErr(t.uni, err)
+		return
 	}
 }
 
@@ -98,6 +99,9 @@ func (t *Top) validate(noun, verb string, data map[string]interface{}) (map[stri
 	file_biz := map[string]interface{}{}
 	ex.AddFuncs(sanitize.FuncMap{
 		"file": func(dat interface{}, s sanitize.Scheme) (interface{}, error) {
+			if t.uni.Req.MultipartForm.File == nil {
+				return nil, fmt.Errorf("No files at all.")
+			}
 			val, has := t.uni.Req.MultipartForm.File[s.Key]
 			if !has {
 				return nil, fmt.Errorf("Can't find key amongst files.")
@@ -114,8 +118,14 @@ func (t *Top) validate(noun, verb string, data map[string]interface{}) (map[stri
 	if err != nil {
 		return nil, err
 	}
-	data["_files"] = file_biz
+	if len(file_biz) > 0 {
+		data["_files"] = file_biz
+	}
 	return data, nil
+}
+
+func filterCreator(db *mgo.Database, nouns, input map[string]interface{}, c string) iface.Filter {
+	return filter.New(set.New(db, c), input)
 }
 
 func (t *Top) route() error {
@@ -140,11 +150,10 @@ func (t *Top) route() error {
 	}
 	desc, err := glue.Identify(uni.P, nouns, uni.Req.Form)
 	if err != nil {
-		display.D(uni)
-		return nil
+		return err
 	}
 	filterCreator := func(c string, input map[string]interface{}) iface.Filter {
-		return filter.New(set.New(uni.Db, c), input)
+		return filterCreator(uni.Db, nouns, input, c)
 	}
 	inp, data, err := desc.CreateInputs(filterCreator)
 	if err != nil {

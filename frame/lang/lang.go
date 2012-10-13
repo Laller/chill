@@ -79,7 +79,6 @@ func (u *URLEncoder) actionPath(action_name string) string {
 	}
 	words = append(words, action_name)
 	path := strings.Join(words, "/")
-	fmt.Println("p", path)
 	return path
 }
 
@@ -110,14 +109,24 @@ type Form struct {
 	KeyPrefix		string
 }
 
-func keyPrefix(action_path string) string {
-	return strconv.Itoa(len(strings.Split(action_path, "/"))-2)
+func keyPrefix(q []url.Values) int {
+	dec := 0
+	for _, v := range q {
+		if loneId(v) {
+			dec++
+		}
+	}
+	return len(q)-dec-1
+}
+
+func keyPrefixString(q []url.Values) string {
+	return strconv.Itoa(keyPrefix(q))
 }
 
 func (u *URLEncoder) Form(action_name string) *Form {
 	f := &Form{}
 	f.ActionPath = u.actionPath(action_name)
-	f.KeyPrefix = keyPrefix(f.ActionPath)
+	f.KeyPrefix = keyPrefixString(u.r.Queries)
 	f.FilterFields = u.r.encodeQueries(true)
 	return f
 }
@@ -225,7 +234,7 @@ func NewRoute(path string, q url.Values) (*Route, error) {
 		qi := len(r.Words)-1
 		if len(ps) > i+1 {	// We are not at the end.
 			next := ps[i+1]
-			if nextIsId(v, next) {	// Id query in url., eg /users/u-fxARrttgFd34xdv7
+			if nextIsId(v, next) {	// Id query in url., eg /users/fxARrttgFd34xdv7
 				skipped++
 				r.Queries[qi].Add("id", extractId(next))
 				i++
@@ -234,7 +243,7 @@ func NewRoute(path string, q url.Values) (*Route, error) {
 		}
 		r.Queries[qi] = sorted[qi-skipped]
 	}
-	if hasLargerThan(sorted, len(r.Words)) {
+	if hasLargerThan(sorted, len(r.Words)-1) {
 		return nil, fmt.Errorf("Unnecessary sorted params.")
 	}
 	return r, nil

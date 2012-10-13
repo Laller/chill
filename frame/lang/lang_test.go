@@ -113,7 +113,7 @@ func TestSentece2(t *testing.T) {
 	}
 }
 
-func TestURLEncoder(t *testing.T) {
+func TestURLEncoderUrlGet(t *testing.T) {
 	path := "/cars"
 	query := url.Values{}
 	query.Add("favourites", "true")
@@ -141,12 +141,12 @@ func TestURLEncoder(t *testing.T) {
 	if merged["favourites"][0] != "true" || merged["1color"][0] != "red" || merged["1color"][1] != "blue" || merged["1quality"][0] != "very high" {
 		t.Fatal()
 	}
-	if len(merged) != 4 {
-		t.Fatal()
+	if len(merged) != 3 {
+		t.Fatal(merged)
 	}
 }
 
-func TestURLEncoder1(t *testing.T) {
+func TestURLEncoderUrlNonGet(t *testing.T) {
 	path := "/cars/ignite"
 	query := url.Values{}
 	query.Add("favourites", "true")
@@ -160,7 +160,7 @@ func TestURLEncoder1(t *testing.T) {
 	if err != nil {
 		t.Fatal()
 	}
-	if sentence.Verb != "Get" {
+	if sentence.Verb != "Ignite" {
 		t.Fatal()
 	}
 	urle := lang.NewURLEncoder(route, sentence)
@@ -174,5 +174,54 @@ func TestURLEncoder1(t *testing.T) {
 	}
 	if merged["favourites"][0] != "true" || merged["1color"][0] != "red" || merged["1color"][1] != "blue" || merged["1quality"][0] != "very high" {
 		t.Fatal()
+	}
+}
+
+func TestUrlEncoderForm(t *testing.T) {
+	path := "/cars/UHPHs2-Q6Q7Ey1gJ/comments/flame"
+	query := url.Values{}
+	query.Add("favourites", "true")
+	query.Add("1fake", "11")
+	route, err := lang.NewRoute(path, query)
+	if err != nil {
+		t.Fatal()
+	}
+	speaker := MockSpeaker{}
+	sentence, err := lang.NewSentence(route, speaker)
+	if err != nil {
+		t.Fatal()
+	}
+	if sentence.Verb != "Flame" && sentence.Noun != "comments" {
+		t.Fatal()
+	}
+	urle := lang.NewURLEncoder(route, sentence)
+	form := urle.Form("whatever-action")
+	if form.KeyPrefix != "1" {
+		t.Fatal(form.KeyPrefix)
+	}
+	if len(form.FilterFields) != 2 || form.FilterFields["favourites"][0] != "true" || form.FilterFields["1fake"][0] != "11" {
+		t.Fatal()
+	}
+	if form.ActionPath != "cars/UHPHs2-Q6Q7Ey1gJ/comments/whatever-action" {
+		t.Fatal()
+	}
+}
+
+func TestUrlEncoderForm1(t *testing.T) {
+	path := "/cars/ignite"
+	query := url.Values{}
+	route, err := lang.NewRoute(path, query)
+	if err != nil {
+		t.Fatal()
+	}
+	speaker := MockSpeaker{}
+	sentence, err := lang.NewSentence(route, speaker)
+	if err != nil {
+		t.Fatal()
+	}
+	urle := lang.NewURLEncoder(route, sentence)
+	form := urle.Form("whatever-action")
+	if form.KeyPrefix != "1" {
+		t.Fatal(form.KeyPrefix)
 	}
 }

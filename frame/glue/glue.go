@@ -80,7 +80,6 @@ func (d *Descriptor) CreateInputs(filterCreator func(string, map[string]interfac
 		if data == nil {
 			data = map[string]interface{}{}		// !Important.
 		}
-		source = source[:len(source)-1]
 	}
 	if fc > 0 {
 		if fc != 1 && len(source) != fc {
@@ -88,12 +87,11 @@ func (d *Descriptor) CreateInputs(filterCreator func(string, map[string]interfac
 		}
 		filters := []iface.Filter{}
 		for i, v := range source {
-			if i == fc && d.Sentence.Verb != "Get" {
+			if d.Sentence.Verb != "Get" && i == len(source)-1 {
 				break
 			}
 			filters = append(filters, filterCreator(d.Route.Words[i], v))
 		}
-		filters[0] = filters[0].Clone()
 		if len(filters) > 1 {
 			filter := filters[0]
 			red, err := filter.Reduce(filters[1:]...)

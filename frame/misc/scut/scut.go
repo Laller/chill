@@ -64,7 +64,7 @@ func OrderKeys(d map[string]interface{}) []interface{} {
 }
 
 func createItem(key string, scheme interface{}, dat interface{}) map[string]interface{} {
-	item := map[string]interface{}{key: 1, "key": key}
+	item := map[string]interface{}{"key": key}
 	item["value"] = dat
 	if sch, ok := scheme.(map[string]interface{}); ok {
 		if typ, hast := sch["type"]; hast {

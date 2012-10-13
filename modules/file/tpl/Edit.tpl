@@ -2,7 +2,7 @@
 
 <h1>{{$.main_noun}} / New:</h1>
 {{$f := form "update"}}
-<form action="{{$f.ActionPath}}" method="POST" enctype="multipart/form-data">
+<form action="/{{$f.ActionPath}}" method="POST" enctype="multipart/form-data">
 	{{$f.HiddenString}}
 	{{range .main}}
 		{{.key}}<br />
