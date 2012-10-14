@@ -7,7 +7,7 @@
 	{{range .main}}
 		{{.key}}<br />
 		{{if eq .type "file"}}
-			<input type="file" name="{{.key}}"/><br />	<!-- !!! -->
+			<input type="file" name="{{.key}}" multiple="multiple"/><br />	<!-- !!! -->
 		{{else}}
 			<input name="{{$f.KeyPrefix}}{{.key}}"/><br />
 		{{end}}

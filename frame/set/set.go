@@ -2,28 +2,32 @@ package set
 
 import(
 	"github.com/opesun/chill/frame/misc/convert"
+	iface "github.com/opesun/chill/frame/interfaces"
 	"labix.org/v2/mgo"
 )
 
-type SetInterface interface {
-	FindOne(map[string]interface{}) (map[string]interface{}, error)
-	Find(map[string]interface{}) ([]interface{}, error)
-	Insert(map[string]interface{}) error
-	// InsertAll([]map[string]interface{}) errors
-	Update(map[string]interface{}, map[string]interface{}) error
-	UpdateAll(map[string]interface{}, map[string]interface{}) (int, error)
-	Remove(map[string]interface{}) error
-	RemoveAll(map[string]interface{}) (int, error)
-	Name()	string
-}
-
-func New(db *mgo.Database, coll string) SetInterface {
-	return &Set{db, coll}
+func New(db *mgo.Database, coll string) iface.Set {
+	return &Set{db, coll, 0, 0, nil}
 }
 
 type Set struct {
-	db *mgo.Database
-	coll string
+	db 		*mgo.Database
+	coll 	string
+	skip	int
+	limit	int
+	sort	[]string
+}
+
+func (s *Set) Skip(i int) {
+	s.skip = i
+}
+
+func (s *Set) Limit(i int) {
+	s.limit = i
+}
+
+func (s *Set) Sort(str ...string) {
+	s.sort = str
 }
 
 func (s *Set) FindOne(q map[string]interface{}) (map[string]interface{}, error) {
@@ -35,9 +39,23 @@ func (s *Set) FindOne(q map[string]interface{}) (map[string]interface{}, error) 
 	return convert.Clean(res).(map[string]interface{}), nil
 }
 
+func (s *Set) Count(q map[string]interface{}) (int, error) {
+	return s.db.C(s.coll).Find(q).Count()
+}
+
 func (s *Set) Find(q map[string]interface{}) ([]interface{}, error) {
+	c := s.db.C(s.coll).Find(q)
+	if s.skip != 0 {
+		c.Skip(s.skip)
+	}
+	if s.limit != 0 {
+		c.Limit(s.limit)
+	}
+	if len(s.sort) > 0 {
+		c.Sort(s.sort...)
+	}
 	var res []interface{}
-	err := s.db.C(s.coll).Find(q).All(&res)
+	err := c.All(&res)
 	if err != nil {
 		return nil, err
 	}

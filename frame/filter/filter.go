@@ -2,23 +2,33 @@ package filter
 
 import(
 	"fmt"
-	"github.com/opesun/chill/frame/set"
 	iface "github.com/opesun/chill/frame/interfaces"
 	"labix.org/v2/mgo/bson"
 	"encoding/base64"
+	"strconv"
 )
 
-type mods struct {
+type Mods struct {
 	skip		int
 	limit		int
-	page		int
-	perPage		int
-	sort		string
+	sort		[]string
+}
+
+func (m *Mods)  Skip() int {
+	return m.skip
+}
+
+func (m *Mods) Limit() int {
+	return m.limit
+}
+
+func (m *Mods) Sort() []string {
+	return m.sort
 }
 
 type Filter struct {
-	set				set.SetInterface
-	mods			*mods
+	set				iface.Set
+	mods			*Mods
 	parentField		string
 	parents			map[string][]bson.ObjectId
 	query			map[string]interface{}
@@ -53,10 +63,12 @@ func (f *Filter) Reduce(a ...iface.Filter) (iface.Filter, error) {
 // Information coming from url.Values/map
 type data struct {
 	query 		map[string]interface{}
-	mods		*mods
+	mods		*Mods
 	parentField	string
 }
 
+// Special fields in query:
+// parentf, sort, limit, skip
 func processMap(inp map[string]interface{}) *data {
 	d := &data{}
 	if inp == nil {
@@ -66,10 +78,26 @@ func processMap(inp map[string]interface{}) *data {
 		d.parentField = val.(string)
 		delete(inp, "parentf")
 	}
-	mods := &mods{}
-	if val, has := inp["sort"]; has {
-		mods.sort = val.(string)
+	mods := &Mods{}
+	if val, has := inp["sort"]; has {	// Should handle slice.
+		mods.sort = []string{val.(string)}
 		delete(inp, "sort")
+	}
+	if val, has := inp["skip"]; has {
+		skipv, err := strconv.Atoi(val.(string))
+		if err != nil {
+			panic(err)
+		}
+		mods.skip = skipv
+		delete(inp, "skip")
+	}
+	if val, has := inp["limit"]; has {	// Should handle slice.
+		limitv, err := strconv.Atoi(val.(string))
+		if err != nil {
+			panic(err)
+		}
+		mods.limit = limitv
+		delete(inp, "limit")
 	}
 	d.mods = mods
 	d.query = toQuery(inp)
@@ -117,14 +145,14 @@ func toQuery(a map[string]interface{}) map[string]interface{} {
 	return r
 }
 
-func NewSimple(set set.SetInterface) *Filter {
+func NewSimple(set iface.Set) *Filter {
 	return &Filter{
 		set:			set,
 		parents:		map[string][]bson.ObjectId{},
 	}
 }
 
-func New(set set.SetInterface, all map[string]interface{}) *Filter {
+func New(set iface.Set, all map[string]interface{}) *Filter {
 	d := processMap(all)
 	f := &Filter{
 		set:			set,
@@ -150,11 +178,16 @@ func (f *Filter) Clone() iface.Filter {
 	return f
 }
 
+func (f *Filter) Modifiers() iface.Modifiers {
+	return f.mods
+}
+
 func (f *Filter) AddQuery(q map[string]interface{}) iface.Filter {
+	query := processMap(q).query
 	for i, v := range f.query {
-		q[i] = v
+		query[i] = v
 	}
-	f.query = q
+	f.query = query
 	return f
 }
 
@@ -182,9 +215,6 @@ func mergeInsert(ins map[string]interface{}, p map[string][]bson.ObjectId) map[s
 	return r
 }
 
-func (f *Filter) AddCrit(q map[string]interface{}) {
-}
-
 func (f *Filter) FindOne() (map[string]interface{}, error) {
 	q := mergeQuery(f.query, f.parents)
 	return f.set.FindOne(q)
@@ -192,6 +222,15 @@ func (f *Filter) FindOne() (map[string]interface{}, error) {
 
 func (f *Filter) Find() ([]interface{}, error) {
 	q := mergeQuery(f.query, f.parents)
+	if f.mods.skip != 0 {
+		f.set.Skip(f.mods.skip)
+	}
+	if f.mods.limit != 0 {
+		f.set.Limit(f.mods.limit)
+	}
+	if len(f.mods.sort) > 0 {
+		f.set.Sort(f.mods.sort...)
+	}
 	return f.set.Find(q)
 }
 
@@ -212,6 +251,11 @@ func (f *Filter) UpdateAll(upd_query map[string]interface{}) (int, error) {
 
 func (f *Filter) Subject() string {
 	return f.set.Name()
+}
+
+func (f *Filter) Count() (int, error) {
+	q := mergeQuery(f.query, f.parents)
+	return f.set.Count(q)
 }
 
 func (f *Filter) AddParents(fieldname string, a []bson.ObjectId) {

@@ -8,7 +8,7 @@
 		{{.key}}<br />
 		{{$key := .key}}
 		{{if eq .type "file"}}
-			<input type="file" name="{{.key}}"/><br />	<!-- !!! -->
+			<input type="file" name="{{.key}}" multiple="multiple"/><br />	<!-- !!! -->
 			<br />
 			{{range .value}}
 				{{.}} <a href="/{{url "delete-file" "key" $key "file" .}}">Delete</a><br />

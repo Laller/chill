@@ -86,7 +86,7 @@ func (u *URLEncoder) UrlString(action_name string, input_params url.Values) stri
 	path, merged := u.Url(action_name, input_params)
 	qu := merged.Encode()
 	if len(qu) > 0 {
-		path = path+qu
+		path = path+"?"+qu
 	}
 	return path
 }

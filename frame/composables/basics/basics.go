@@ -3,18 +3,35 @@ package basics
 import(
 	iface "github.com/opesun/chill/frame/interfaces"
 	"labix.org/v2/mgo/bson"
-	"fmt"
 )
 
 type Basics struct {
 }
 
-func (b *Basics) Get(a iface.Filter) ([]interface{}, error) {
-	return a.Find()
+type QueryInfo struct {
+	Count 	int
+	Skipped	int
+	Limited	int
+	Sorted	[]string
+}
+
+func (b *Basics) Get(a iface.Filter) ([]interface{}, *QueryInfo, error) {
+	list, err := a.Find()
+	if err != nil {
+		return nil, nil, err
+	}
+	count, err := a.Count()
+	if err != nil {
+		return nil, nil, err
+	}
+	return list, &QueryInfo{
+		count, a.Modifiers().Skip(),
+		a.Modifiers().Limit(),
+		a.Modifiers().Sort(),
+	}, nil
 }
 
 func (b *Basics) Insert(a iface.Filter, data map[string]interface{}) (bson.ObjectId, error) {
-	fmt.Println("subb:", a.Subject())
 	id := bson.NewObjectId()
 	data["_id"] = id
 	err := a.Insert(data)
