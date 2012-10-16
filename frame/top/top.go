@@ -12,6 +12,7 @@ import(
 	"github.com/opesun/chill/frame/verbinfo"
 	"github.com/opesun/chill/frame/glue"
 	"github.com/opesun/jsonp"
+	"github.com/opesun/numcon"
 	"github.com/opesun/sanitize"
 	"net/http"
 	"net/url"
@@ -150,7 +151,17 @@ func (t *Top) route() error {
 	}
 	desc, err := glue.Identify(uni.P, nouns, uni.Req.Form)
 	if err != nil {
-		return err
+		display.D(uni)
+		return nil
+	}
+	default_level, _ := numcon.Int(uni.Opt["default_level"])
+	levi, ok := jsonp.Get(uni.Opt, fmt.Sprintf("nouns.%v.verbs.%v.level", desc.Sentence.Noun, desc.Sentence.Verb))
+	if !ok {
+		levi = default_level
+	}
+	lev, _ := numcon.Int(levi)
+	if scut.Ulev(uni.Dat["_user"]) < lev {
+		return fmt.Errorf("Not allowed.")
 	}
 	filterCreator := func(c string, input map[string]interface{}) iface.Filter {
 		return filterCreator(uni.Db, nouns, input, c)
@@ -179,7 +190,7 @@ func (t *Top) route() error {
 	ins.Method(uni.S.Verb).Call(ret_rec, inp...)
 	if uni.Req.Method == "GET" {
 		uni.Dat["main_noun"] = desc.Sentence.Noun
-		uni.Dat["_points"] = []string{desc.VerbLocation+"/"+desc.Sentence.Verb}
+		uni.Dat["_points"] = []string{desc.Sentence.Noun + "/" + desc.Sentence.Verb, desc.VerbLocation + "/" + desc.Sentence.Verb}
 		t.Get(ret)
 	} else {
 		t.Post(ret)

@@ -31,6 +31,10 @@ func (b *Basics) Get(a iface.Filter) ([]interface{}, *QueryInfo, error) {
 	}, nil
 }
 
+func (b *Basics) GetSingle(a iface.Filter) (map[string]interface{}, error) {
+	return a.FindOne()
+}
+
 func (b *Basics) Insert(a iface.Filter, data map[string]interface{}) (bson.ObjectId, error) {
 	id := bson.NewObjectId()
 	data["_id"] = id

@@ -167,9 +167,14 @@ func GetFile(root, fi string, opt map[string]interface{}, host string, file_read
 	return file_reader(filepath.Join(root, mp[0], mp[1]))
 }
 
+func dirify(s string) string {
+	return strings.Replace(s, ":", "-", -1)
+}
+
 // Observes opt and gives you back the path of your template eg
 // "templates/public/template_name" or "templates/private/hostname/template_name"
 func GetTPath(opt map[string]interface{}, host string) string {
+	host = dirify(host)
 	templ := TemplateName(opt)
 	ttype := TemplateType(opt)
 	if ttype == "public" {

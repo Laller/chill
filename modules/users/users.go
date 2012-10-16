@@ -8,6 +8,8 @@ import (
 	iface "github.com/opesun/chill/frame/interfaces"
 	"github.com/opesun/chill/modules/users/model"
 	"net/http"
+	"fmt"
+	"labix.org/v2/mgo/bson"
 )
 
 type C struct {
@@ -51,12 +53,45 @@ func (h *C) BuildUser(a iface.Filter) (user map[string]interface{}) {
 	return
 }
 
-func (a *C) Insert(f iface.Filter, data map[string]interface{}) error {
-	return f.Insert(data)
+func (a *C) Insert(f iface.Filter, data map[string]interface{}) (bson.ObjectId, error) {
+	data["level"] = 100
+	return user_model.RegisterUser(f, data)
+}
+
+func (a *C) InsertAdmin(f iface.Filter, data map[string]interface{}) (bson.ObjectId, error) {
+	err := hasAdmin(f)
+	if err != nil {
+		return "", nil
+	}
+	data["level"] = 300
+	return user_model.RegisterUser(f, data)
 }
 
 func (a *C) LoginForm() error {
 	return nil
+}
+
+func (a *C) New() error {
+	return nil
+}
+
+func hasAdmin(f iface.Filter) error {
+	q := map[string]interface{}{
+		"level": 300,
+	}
+	f.AddQuery(q)
+	c, err := f.Count()
+	if err != nil {
+		return err
+	}
+	if c > 0 {
+		return fmt.Errorf("Site already has an admin.")
+	}
+	return nil
+}
+
+func (a *C) NewAdmin(f iface.Filter) error {
+	return hasAdmin(f)
 }
 
 func (a *C) Login(f iface.Filter, data map[string]interface{}) error {

@@ -62,7 +62,7 @@ func extractLone(a url.Values) string {
 
 func (u *URLEncoder) actionPath(action_name string) string {
 	var words []string
-	if u.s.Verb == "Get" {
+	if u.s.Verb == "Get" || u.s.Verb == "GetSingle" {
 		for i, v := range u.r.Words {
 			words = append(words, v)
 			if loneId(u.r.Queries[i]) {
@@ -94,7 +94,7 @@ func (u *URLEncoder) UrlString(action_name string, input_params url.Values) stri
 func (u *URLEncoder) Url(action_name string, input_params url.Values) (string, url.Values) {
 	path := u.actionPath(action_name)
 	var l []url.Values
-	if u.s.Verb != "Get" {
+	if u.s.Verb != "Get" && u.s.Verb != "GetSingle" {
 		l = u.r.Queries
 		l[len(l)-1] = input_params
 	} else {
@@ -265,26 +265,34 @@ func NewSentence(r *Route, speaker iface.Speaker) (*Sentence, error) {
 	s := &Sentence{}
 	if len(r.Words) == 1 {
 		s.Noun = r.Words[0]
-		s.Verb = "Get"
+		if loneId(r.Queries[0]) {
+			s.Verb = "GetSingle"
+		} else {
+			s.Verb = "Get"
+		}
 		return s, nil
 	}
 	unstable := r.Get()
 	must_be_noun := r.Get()
+	l := len(r.Words)
 	if speaker.IsNoun(unstable) {
-		s.Verb = "Get"
+		if loneId(r.Queries[l-1]) {
+			s.Verb = "GetSingle"
+		} else {
+			s.Verb = "Get"
+		}
 		s.Noun = unstable
 	} else if speaker.NounHasVerb(must_be_noun, ToCodeStyle(unstable)) {
 		s.Verb = ToCodeStyle(unstable)
 		s.Noun = must_be_noun
 	} else {
 		s.Redundant = unstable
-		l := len(r.Words)
 		// A noun is singular if it has exactly one query param, the id.
-		if len(r.Queries[l-2]) != 1 || r.Queries[l-2]["id"] == nil {
+		if !loneId(r.Queries[l-2]) {
 			return nil, fmt.Errorf("Plural nouns can't have redundant information.")
 		}
 		r.DropOne()
-		s.Verb = "Get"
+		s.Verb = "GetSingle"
 		s.Noun = must_be_noun
 	}
 	if !speaker.IsNoun(s.Noun) {

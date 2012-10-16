@@ -17,6 +17,8 @@ import (
 	"html/template"
 	"runtime/debug"
 	"strings"
+	"path/filepath"
+	"os"
 )
 
 // Prints errors during template file display to http response. (Kinda nonsense now as it is.)
@@ -218,12 +220,44 @@ func BeforeDisplay(uni *context.Uni) {
 	uni.Ev.Trigger("BeforeDisplay")
 }
 
+// Taken from http://stackoverflow.com/questions/10510691/how-to-check-whether-a-file-or-directory-denoted-by-a-path-exists-in-golang
+// exists returns whether the given file or directory exists or not
+func exists(path string) (bool, error) {
+	_, err := os.Stat(path)
+	if err == nil {
+		return true, nil
+	}
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	return false, err
+}
+
+func existing(t string, s []string) string {
+	if len(s) > 10 {
+		panic("Ouch.")
+	}
+	for i, v := range s {
+		if i == len(s)-1 {
+			return v
+		}
+		ex, err := exists(filepath.Join(t, v) + ".tpl")
+		if err != nil {
+			panic(err)
+		}
+		if ex {
+			return v
+		}
+	}
+	return ""
+}
+
 // Displays a display point.
 func D(uni *context.Uni) {
 	points, points_exist := uni.Dat["_points"]
 	var point string
 	if points_exist {
-		point = points.([]string)[0]
+		point = existing(filepath.Join(uni.Root, scut.GetTPath(uni.Opt, uni.Req.Host)), points.([]string))
 	} else {
 		p := uni.Req.URL.Path
 		if p == "/" {
@@ -244,7 +278,6 @@ func D(uni *context.Uni) {
 	}
 	if _, isjson := uni.Modifiers["json"]; isjson {
 		putJSON(uni)
-		return
 	} else {
 		err := DisplayFile(uni, point)
 		if err != nil {

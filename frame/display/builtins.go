@@ -145,6 +145,38 @@ func _url(action_name string, r *lang.Route, s *lang.Sentence, i ...string) stri
 	return f.UrlString(action_name, inp)
 }
 
+type counter int
+
+func newcounter() *counter {
+	v := counter(0)
+	return &v
+}
+
+func (c *counter) Inc() string {		// Ugly hack, template engine needs a return value.
+	*c++
+	return ""
+}
+
+func (c counter) Eq(i int) bool {
+	return int(c) == i
+}
+
+func (c counter) EveryX(i int) bool {
+	if i == 0 {
+		return false
+	}
+	return int(c)%i==0
+}
+
+func decodeId(s string) string {
+	
+}
+
+// Works from a Get or GetSingle only.
+func getSub(noun string, params ...string) []interface{} {
+	
+}
+
 // We must recreate this map each time because map write is not threadsafe.
 // Write will happen when a hook modifies the map (hook call is not implemented yet).
 func builtins(uni *context.Uni) map[string]interface{} {
@@ -186,6 +218,7 @@ func builtins(uni *context.Uni) map[string]interface{} {
 		"form": func(action_name string) *Form {
 			return form(action_name, uni.R, uni.S)
 		},
+		"counter": newcounter,
 	}
 	return ret
 }

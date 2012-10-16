@@ -3,12 +3,11 @@
 <h1>{{$.main_noun}} / LoginForm:</h1>
 
 {{if logged_in}}
-	asd
 	{{$f := form "logout"}}
-	<a href="{{$f.ActionPath}}">Logout</a>
+	<a href="/{{$f.ActionPath}}">Logout</a>
 {{else}}
 	{{$f := form "login"}}
-	<form action="{{$f.ActionPath}}" method="POST">
+	<form action="/{{$f.ActionPath}}" method="POST">
 		name:<br />
 		<input name="{{$f.KeyPrefix}}name" value=""/><br />
 		<br />

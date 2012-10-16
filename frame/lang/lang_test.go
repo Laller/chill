@@ -113,6 +113,23 @@ func TestSentece2(t *testing.T) {
 	}
 }
 
+func TestSingle(t *testing.T) {
+	path := "/cars/UHPHs2-Q6Q7Ey1gJ"
+	query := url.Values{}
+	route, err := lang.NewRoute(path, query)
+	if err != nil {
+		t.Fatal()
+	}
+	speaker := MockSpeaker{}
+	sentence, err := lang.NewSentence(route, speaker)
+	if err != nil {
+		t.Fatal()
+	}
+	if sentence.Verb != "GetSingle" {
+		t.Fatal()
+	}
+}
+
 func TestURLEncoderUrlGet(t *testing.T) {
 	path := "/cars"
 	query := url.Values{}

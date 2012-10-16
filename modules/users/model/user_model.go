@@ -170,19 +170,17 @@ func NameAvailable(a iface.Filter, name string) (bool, error) {
 	return true, nil
 }
 
-func RegisterUser(a iface.Filter, ev iface.Event, user map[string]interface{}) (bson.ObjectId, error) {
-	delete(user, "password_again")
+func RegisterUser(a iface.Filter, user map[string]interface{}) (bson.ObjectId, error) {
 	user["password"] = hashPass(user["password"].(string))
-	user["slug"] = slugify.S(user["slug"].(string))
-	user["level"] = 100
+	if _, has := user["level"]; !has {
+		user["level"] = 100
+	}
 	user_id := bson.NewObjectId()
 	user["_id"] = user_id
 	err := a.Insert(user)
 	if err != nil {
 		return "", fmt.Errorf("Name is not unique.")
 	}
-	delete(user, "password")
-	ev.Trigger("user.register", user)
 	return user_id, nil
 }
 
