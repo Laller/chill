@@ -4,7 +4,7 @@ import(
 	"fmt"
 	iface "github.com/opesun/chill/frame/interfaces"
 	"labix.org/v2/mgo/bson"
-	"encoding/base64"
+	"github.com/opesun/chill/frame/misc/scut"
 	"strconv"
 )
 
@@ -68,7 +68,7 @@ type data struct {
 }
 
 // Special fields in query:
-// parentf, sort, limit, skip
+// parentf, sort, limit, skip, page
 func processMap(inp map[string]interface{}) *data {
 	d := &data{}
 	if inp == nil {
@@ -98,18 +98,20 @@ func processMap(inp map[string]interface{}) *data {
 		}
 		mods.limit = limitv
 		delete(inp, "limit")
+	} else {
+		mods.limit = 20
+	}
+	if val, has := inp["page"]; has {
+		pagev, err := strconv.Atoi(val.(string))
+		if err != nil {
+			panic(err)
+		}
+		mods.skip = (pagev-1)*mods.limit
+		delete(inp, "page")
 	}
 	d.mods = mods
 	d.query = toQuery(inp)
 	return d
-}
-
-func decodeId(s string) bson.ObjectId {
-	val, err := base64.URLEncoding.DecodeString(s)
-	if err != nil {
-		panic("Can't decode id: "+ err.Error())
-	}
-	return bson.ObjectId(val)
 }
 
 // inp: url.Values => map, returns query map
@@ -121,7 +123,7 @@ func toQuery(a map[string]interface{}) map[string]interface{} {
 			for _, x := range slice {
 				if i == "id" {
 					i = "_id"
-					vi = append(vi, decodeId(v.(string)))
+					vi = append(vi, scut.DecodeIdP(v.(string)))
 				} else {
 					vi = append(vi, x)
 				}
@@ -129,7 +131,7 @@ func toQuery(a map[string]interface{}) map[string]interface{} {
 		} else {
 			if i == "id" {
 				i = "_id"
-				vi = append(vi, decodeId(v.(string)))
+				vi = append(vi, scut.DecodeIdP(v.(string)))
 			} else {
 				vi = append(vi, v)
 			}

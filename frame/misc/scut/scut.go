@@ -7,10 +7,10 @@ import (
 	"github.com/opesun/numcon"
 	"io/ioutil"
 	"labix.org/v2/mgo/bson"
+	"encoding/base64"
 	"path/filepath"
 	"sort"
 	"strings"
-	"encoding/base64"
 )
 
 // Converts all bson.ObjectId s to string. Usually called before displaying a database query result.
@@ -42,6 +42,22 @@ func IdsToStrings(v interface{}) {
 			}
 		}
 	}
+}
+
+func DecodeId(s string) (bson.ObjectId, error) {
+	val, err := base64.URLEncoding.DecodeString(s)
+	if err != nil {
+		panic("Can't decode id: "+ err.Error())
+	}
+	return bson.ObjectId(val), nil
+}
+
+func DecodeIdP(s string) bson.ObjectId {
+	val, err := DecodeId(s)
+	if err != nil {
+		panic(err)
+	}
+	return val
 }
 
 // A more generic version of abcKeys. Takes a map[string]interface{} and puts every element of that into an []interface{}, ordered by keys alphabetically.
@@ -167,14 +183,14 @@ func GetFile(root, fi string, opt map[string]interface{}, host string, file_read
 	return file_reader(filepath.Join(root, mp[0], mp[1]))
 }
 
-func dirify(s string) string {
+func Dirify(s string) string {
 	return strings.Replace(s, ":", "-", -1)
 }
 
 // Observes opt and gives you back the path of your template eg
 // "templates/public/template_name" or "templates/private/hostname/template_name"
 func GetTPath(opt map[string]interface{}, host string) string {
-	host = dirify(host)
+	host = Dirify(host)
 	templ := TemplateName(opt)
 	ttype := TemplateType(opt)
 	if ttype == "public" {

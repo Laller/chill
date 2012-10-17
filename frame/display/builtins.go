@@ -7,6 +7,7 @@ import (
 	"github.com/opesun/chill/frame/lang"
 	"github.com/opesun/chill/frame/misc/scut"
 	"github.com/opesun/jsonp"
+	"github.com/opesun/paging"
 	"github.com/opesun/numcon"
 	"html/template"
 	"reflect"
@@ -168,13 +169,43 @@ func (c counter) EveryX(i int) bool {
 	return int(c)%i==0
 }
 
-func decodeId(s string) string {
-	return ""
-}
-
 // Works from a Get or GetSingle only.
 func getSub(uni *context.Uni, noun string, params ...string) []interface{} {
 	return nil
+}
+
+func decodeId(s string) string {
+	val := scut.DecodeIdP(s)
+	return val.Hex()
+}
+
+type pagr struct {
+	HasPrev		bool
+	Prev		int
+	HasNext		bool
+	Next		int
+	Elems		[]paging.Pelem
+}
+
+func pager(uni *context.Uni, pagestr string, count, limit int) []paging.Pelem {
+	if len(pagestr) == 0 {
+		pagestr = "1"
+	}
+	fmt.Println("PGE", pagestr)
+	if limit == 0 {
+		return nil
+	}
+	p := uni.P + "?" + uni.Req.URL.RawQuery
+	page, err := strconv.Atoi(pagestr)
+	if err != nil {
+		return nil	// Not blowing up here.
+	}
+	if page == 0 {
+		return nil
+	}
+	page_count := count/limit+1
+	nav, _ := paging.P(page, page_count, 3, p)
+	return nav
 }
 
 // We must recreate this map each time because map write is not threadsafe.
@@ -222,6 +253,16 @@ func builtins(uni *context.Uni) map[string]interface{} {
 		"counter": newcounter,
 		"get_sub": func(s string, params ...string) []interface{} {
 			return getSub(uni, s, params...)
+		},
+		"decode_id": decodeId,
+		"pager": func(pagesl []string, count, limited int) []paging.Pelem {
+			var pagestr string
+			if len(pagesl) == 0 {
+				pagestr = "1"
+			} else {
+				pagestr = pagesl[0]
+			}
+			return pager(uni, pagestr, count, limited)
 		},
 	}
 	return ret

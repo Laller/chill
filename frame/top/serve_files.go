@@ -17,6 +17,8 @@ func (t *Top) serveFile() {
 	has_sfx := strings.HasSuffix(last_p, ".go")
 	if first_p == "template" || first_p == "tpl" && !has_sfx {
 		t.serveTemplateFile()
+	} else if first_p == "uploads" {
+		t.serveUploadedFile()
 	} else if !has_sfx {
 		if uni.Paths[1] == "shared" {
 			http.ServeFile(uni.W, uni.Req, filepath.Join(t.config.AbsPath, uni.Req.URL.Path))
@@ -36,4 +38,9 @@ func (t *Top) serveTemplateFile() {
 	} else { // "tpl"
 		http.ServeFile(uni.W, uni.Req, filepath.Join(uni.Root, "modules", uni.Paths[2], "tpl", strings.Join(uni.Paths[3:], "/")))
 	}
+}
+
+func (t *Top) serveUploadedFile() {
+	uni := t.uni
+	http.ServeFile(uni.W, uni.Req, filepath.Join(uni.Root, "uploads", scut.Dirify(uni.Req.Host), strings.Join(uni.Paths[2:], "/")))
 }

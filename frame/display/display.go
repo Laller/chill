@@ -266,6 +266,7 @@ func D(uni *context.Uni) {
 			point = p
 		}
 	}
+	uni.Dat["form"] = uni.Req.Form
 	BeforeDisplay(uni)
 	// While it is not the cheapest solution to convert bson.ObjectIds to strings here, where we have to iterate trough all values,
 	// it is still better than remembering (and forgetting) to convert it at every specific place.
