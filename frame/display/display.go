@@ -217,7 +217,7 @@ func BeforeDisplay(uni *context.Uni) {
 			fmt.Println(r)
 		}
 	}()
-	uni.Ev.Trigger("BeforeDisplay")
+	uni.Ev.Fire("BeforeDisplay")
 }
 
 // Taken from http://stackoverflow.com/questions/10510691/how-to-check-whether-a-file-or-directory-denoted-by-a-path-exists-in-golang

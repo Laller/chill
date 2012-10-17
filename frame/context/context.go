@@ -29,9 +29,9 @@ type Uni struct {
 	Put     	func(...interface{})   		// Just a convenience function to allow fast output to http response.
 	Root    	string                 		// Absolute path of the application.
 	Ev      	*Ev
-	NewModule	func(string) iface.Module
 	R			*lang.Route
 	S			*lang.Sentence
+	NewModule	func(string) iface.Module
 }
 
 // Set only once.
@@ -45,7 +45,7 @@ func (u *Uni) OriginalOpt() string {
 	return u.opt
 }
 
-// Maybe we should not even return the secret, because a badly written module can make publish it.
+// Maybe we should not even return the secret, because a badly written module can make it public.
 // Or, we could serve different values to different packages.
 // That makes the encrypted values noncompatible across packages though.
 func (u *Uni) Secret() string {
@@ -59,11 +59,11 @@ func (u *Uni) SetSecret(s string) {
 	}
 }
 
-// With the help of this type it's possible for the model to not have direct access to everything (*context.Uni), but still trigger events,
-// which in turn will result in hooks (which may need access to everything) being called.
-// Ev is an implementation of the interface Event fround in "github.com/opesun/chill/interfaces"
+// Used to call subscribed hooks.
 type Ev struct {
-	uni    *Uni
+	uni    		*Uni
+	cache		map[string]iface.Instance
+	newModule	func(string) iface.Module
 }
 
 // Return all hooks modules subscribed to a path.
@@ -79,29 +79,54 @@ func all(e *Ev, path string) []string {
 	return ret
 }
 
-// Trigger calls hooks subscribed to eventname, passes *Uni as a first parameter if the given hook needs it (eg *context.Uni
-// is defined as its first parameter), and params... if they are given.
-//
-// Example eventname: "content.insert"
-// Note that, different subscriptions should not be created for subsets of functionality,
-// eg: "content.blog.insert" (where blog is a content type) should not be used, because we build the hook function name from the access path, eg:
-// content.insert => ContentInsert may be a static, valid hookname, but ContentBlogInsert not (a module author can't know that the type will be blog or
-// cats ahead of time).
-//
-// Filtering can be done inside ContentInsert if one module wants to act only on certain information (in the example case on certain content types).
-func (e *Ev) Trigger(eventname string, params ...interface{}) {
-	e.trigger(eventname, nil, params...)
+// This is an iface.Module, which wraps the github.com/opesun/chill/frame/mod implementation and implements instance caching.
+type InstanceCacher struct {
+				iface.Module
+	cache 		map[string]iface.Instance
+	uni			*Uni
+	name		string
+}
+
+func (m InstanceCacher) Instance() iface.Instance {
+	var ins iface.Instance
+	ins, has := m.cache[m.name]
+	if !has {
+		if !m.Exists() {
+			panic(fmt.Sprintf("Module %v modname does not exist.", m.name))
+		}
+		insta := m.Module.Instance()
+		insta.Method("Init").Call(nil, m.uni)
+		m.cache[m.name] = insta
+		ins = insta
+	}
+	return ins
+}
+
+func (e *Ev) NewModuleProducer() func(string) iface.Module {
+	return func(modname string) iface.Module {
+		return &InstanceCacher{
+			e.newModule(modname),
+			e.cache,
+			e.uni,
+			modname,
+		}
+	}
+}
+
+// Fire calls hooks subscribed to eventname, but does not case about their return values.
+func (e *Ev) Fire(eventname string, params ...interface{}) {
+	e.iterate(eventname, nil, params...)
 }
 
 // Calls all hooks subscribed to eventname, with params, feeding the output of every hook into stopfunc.
 // Stopfunc's argument signature must match the signatures of return values of the called hooks.
 // Stopfunc must return a boolean value. A boolean value of true stops the iteration.
-// Iterate allows to mimic the semantics of calling all hooks one by one, with *Uni if the need it, without having access to *Uni.
+// Iterate allows to mimic the semantics of calling all hooks one by one.
 func (e *Ev) Iterate(eventname string, stopfunc interface{}, params ...interface{}) {
-	e.trigger(eventname, stopfunc, params...)
+	e.iterate(eventname, stopfunc, params...)
 }
 
-func (e *Ev) trigger(eventname string, stopfunc interface{}, params ...interface{}) {
+func (e *Ev) iterate(eventname string, stopfunc interface{}, params ...interface{}) {
 	subscribed := all(e, eventname)
 	hookname := hooknameize(eventname)
 	var stopfunc_numin int
@@ -120,11 +145,18 @@ func (e *Ev) trigger(eventname string, stopfunc interface{}, params ...interface
 	}
 	for _, modname := range subscribed {
 		hook_outp := []reflect.Value{}
-		mo := e.uni.NewModule(modname)
-		if !mo.Exists() {
-			panic(fmt.Sprintf("Module %v modname does not exist.", modname))
+		var ins iface.Instance
+		ins, has := e.cache[modname]
+		if !has {
+			mo := e.newModule(modname)
+			if !mo.Exists() {
+				panic(fmt.Sprintf("Module %v modname does not exist.", modname))
+			}
+			insta := mo.Instance()
+			insta.Method("Init").Call(nil, e.uni)
+			e.cache[modname] = insta
+			ins = insta
 		}
-		ins := mo.Instance()
 		if !ins.HasMethod(hookname) {
 			panic(fmt.Sprintf("Module %v has no method named %v", modname, hookname))
 		}
@@ -140,7 +172,6 @@ func (e *Ev) trigger(eventname string, stopfunc interface{}, params ...interface
 				}
 			}
 		}
-		ins.Method("Init").Call(nil, e.uni)
 		err := ins.Method(hookname).Call(ret_rec, params...)
 		if err != nil {
 			panic(err)
@@ -158,8 +189,8 @@ func (e *Ev) trigger(eventname string, stopfunc interface{}, params ...interface
 	}
 }
 
-func NewEv(uni *Uni) *Ev {
-	return &Ev{uni}
+func NewEv(uni *Uni, newModule func(string)iface.Module) *Ev {
+	return &Ev{uni, map[string]iface.Instance{}, newModule}
 }
 
 // Creates a hookname from access path.

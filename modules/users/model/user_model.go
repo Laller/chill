@@ -147,7 +147,7 @@ func BuildUser(a iface.Filter, ev iface.Event, user_id bson.ObjectId, http_heade
 			user["languages"] = []string{"en"}
 		}
 	}
-	ev.Trigger("user.build", user)
+	ev.Fire("user.build", user)
 	return user, nil
 }
 

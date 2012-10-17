@@ -84,7 +84,7 @@ func fallback(a ...interface{}) interface{} {
 			return v
 		}
 	}
-	return false
+	return ""
 }
 
 func formatFloat(i interface{}, prec int) string {
@@ -169,12 +169,12 @@ func (c counter) EveryX(i int) bool {
 }
 
 func decodeId(s string) string {
-	
+	return ""
 }
 
 // Works from a Get or GetSingle only.
-func getSub(noun string, params ...string) []interface{} {
-	
+func getSub(uni *context.Uni, noun string, params ...string) []interface{} {
+	return nil
 }
 
 // We must recreate this map each time because map write is not threadsafe.
@@ -212,6 +212,7 @@ func builtins(uni *context.Uni) map[string]interface{} {
 		"fallback": fallback,
 		"type_of":	typeOf,
 		"same_kind": sameKind,
+		"title": strings.Title,
 		"url": func(action_name string, i ...string) string {
 			return _url(action_name, uni.R, uni.S, i...) 
 		},
@@ -219,6 +220,9 @@ func builtins(uni *context.Uni) map[string]interface{} {
 			return form(action_name, uni.R, uni.S)
 		},
 		"counter": newcounter,
+		"get_sub": func(s string, params ...string) []interface{} {
+			return getSub(uni, s, params...)
+		},
 	}
 	return ret
 }

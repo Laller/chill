@@ -30,7 +30,6 @@ func (t *Top) buildUser() {
 		t.uni.Dat["_user"] = usr
 	}
 	ins := t.uni.NewModule("users").Instance()
-	ins.Method("Init").Call(nil, t.uni)
 	ins.Method("BuildUser").Call(ret_rec, filter.NewSimple(set.New(t.uni.Db, "users")))
 }
 
@@ -97,31 +96,12 @@ func (t *Top) validate(noun, verb string, data map[string]interface{}) (map[stri
 	if err != nil {
 		return nil, err
 	}
-	file_biz := map[string]interface{}{}
-	ex.AddFuncs(sanitize.FuncMap{
-		"file": func(dat interface{}, s sanitize.Scheme) (interface{}, error) {
-			if t.uni.Req.MultipartForm.File == nil {
-				return nil, fmt.Errorf("No files at all.")
-			}
-			val, has := t.uni.Req.MultipartForm.File[s.Key]
-			if !has {
-				return nil, fmt.Errorf("Can't find key amongst files.")
-			}
-			ret := []interface{}{}
-			for _, v := range val {
-				ret = append(ret, v)
-			}
-			file_biz[s.Key] = ret
-			return ret, nil
-		},
-	})
+	t.uni.Ev.Fire("SanitizerMangler", ex)
 	data, err = ex.Extract(data)
 	if err != nil {
 		return nil, err
 	}
-	if len(file_biz) > 0 {
-		data["_files"] = file_biz
-	}
+	t.uni.Ev.Fire("SanitizedDataMangler", data)
 	return data, nil
 }
 
@@ -181,7 +161,7 @@ func (t *Top) route() error {
 	}
 	uni.R = desc.Route
 	uni.S = desc.Sentence
-	module := mod.NewModule(desc.VerbLocation)
+	module := t.uni.NewModule(desc.VerbLocation)
 	if !module.Exists() {
 		return fmt.Errorf("Unkown module.")
 	}
@@ -242,7 +222,9 @@ func New(session *mgo.Session, db *mgo.Database, w http.ResponseWriter, req *htt
 	if config.DBAdmMode {
 		uni.Session = session
 	}
-	uni.Ev = context.NewEv(uni)
+	ev := context.NewEv(uni, mod.NewModule)
+	uni.Ev = ev
+	uni.NewModule = ev.NewModuleProducer()
 	opt, opt_str, err := queryConfig(uni.Db, req.Host, config.CacheOpt) // Tricky part about the host, see comments at main_model.
 	if err != nil {
 		return nil, err

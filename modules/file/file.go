@@ -8,6 +8,7 @@ import(
 	"github.com/opesun/chill/frame/composables/basics"
 	"labix.org/v2/mgo/bson"
 	"fmt"
+	"github.com/opesun/sanitize"
 	"strings"
 	"mime/multipart"
 	"io/ioutil"
@@ -19,10 +20,38 @@ import(
 type C struct {
 	basics.Basics
 	uni *context.Uni
+	fileBiz map[string]interface{}
 }
 
 func (c *C) Init(uni *context.Uni) {
 	c.uni = uni
+	c.fileBiz = map[string]interface{}{} 
+}
+
+func (c *C) SanitizerMangler(san *sanitize.Extractor) {
+	san.AddFuncs(sanitize.FuncMap{
+		"file": func(dat interface{}, s sanitize.Scheme) (interface{}, error) {
+			if c.uni.Req.MultipartForm.File == nil {
+				return nil, fmt.Errorf("No files at all.")
+			}
+			val, has := c.uni.Req.MultipartForm.File[s.Key]
+			if !has {
+				return nil, fmt.Errorf("Can't find key amongst files.")
+			}
+			ret := []interface{}{}
+			for _, v := range val {
+				ret = append(ret, v)
+			}
+			c.fileBiz[s.Key] = ret
+			return ret, nil
+		},
+	})
+}
+
+func (c *C) SanitizedDataMangler(data map[string]interface{}) {
+	if len(c.fileBiz) > 0 {
+		data["_files"] = c.fileBiz
+	}
 }
 
 func copy(fh *multipart.FileHeader, path, fname string) error {
