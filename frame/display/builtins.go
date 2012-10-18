@@ -6,6 +6,7 @@ import (
 	"github.com/opesun/chill/frame/context"
 	"github.com/opesun/chill/frame/lang"
 	"github.com/opesun/chill/frame/glue"
+	"github.com/opesun/chill/frame/misc/convert"
 	"github.com/opesun/chill/frame/misc/scut"
 	"github.com/opesun/jsonp"
 	"github.com/opesun/paging"
@@ -13,7 +14,6 @@ import (
 	"github.com/opesun/numcon"
 	"html/template"
 	"reflect"
-	"net/url"
 	"strings"
 	"time"
 	"strconv"
@@ -114,8 +114,12 @@ type Form struct {
 func (f *Form) HiddenFields() [][2]string {
 	ret := [][2]string{}
 	for i, v := range f.FilterFields {
-		for _, x := range v {
-			ret = append(ret, [2]string{i, x})
+		if _, yepp := v.([]interface{}); yepp {
+			for _, x := range v.([]interface{}) {
+				ret = append(ret, [2]string{i, fmt.Sprint(x)})
+			}
+		} else {
+			ret = append(ret, [2]string{i, fmt.Sprint(v)})
 		}
 	}
 	return ret
@@ -135,22 +139,13 @@ func form(action_name string, r *lang.Route, s *lang.Sentence) *Form {
 	return &Form{f}
 }
 
-func _url(action_name string, r *lang.Route, s *lang.Sentence, i ...string) string {
+func _url(action_name string, r *lang.Route, s *lang.Sentence, i ...interface{}) string {
 	f := lang.NewURLEncoder(r, s)
 	if len(i)%2 == 1 {
 		panic("Must be even.")
 	}
-	inp := strToValues(i...)
+	inp := convert.ListToMap(i...)
 	return f.UrlString(action_name, inp)
-}
-
-func strToValues(i ...string) url.Values {
-	r := url.Values{}
-	for x:=0;x<len(i)-1; {
-		r.Add(i[x], i[x+1])
-		x = x+2
-	}
-	return r
 }
 
 type counter int
@@ -177,22 +172,22 @@ func (c counter) EveryX(i int) bool {
 }
 
 // Mainly designed to work from Get or GetSingle
-func getSub(uni *context.Uni, noun string, params ...string) []interface{} {
+func getSub(uni *context.Uni, noun string, params ...interface{}) []interface{} {
 	if uni.Route == nil && uni.Sentence == nil {
 		panic("Nothing to do here.")
 	}
 	s := uni.Sentence
 	r := uni.Route
 	var path string
-	var urls []url.Values
+	var urls []map[string]interface{}
 	if s.Verb != "Get" && s.Verb != "GetSingle" {
 		path = "/" + strings.Join(r.Words, "/") + "/" + noun
 		urls = append(urls, r.Queries...)
-		urls = append(urls, strToValues(params...))
+		urls = append(urls, convert.ListToMap(params...))
 	} else {
 		path = "/" + strings.Join(r.Words, "/") + "/" + noun
 		urls = append(urls, r.Queries[:len(r.Queries)-1]...)
-		urls = append(urls, strToValues(params...))
+		urls = append(urls, convert.ListToMap(params...))
 	}
 	desc, err := glue.Identify(path, uni.Opt["nouns"].(map[string]interface{}), lang.EncodeQueries(urls, false))
 	inp, data, err := desc.CreateInputs(uni.FilterCreator)
@@ -215,9 +210,8 @@ func getSub(uni *context.Uni, noun string, params ...string) []interface{} {
 	return ret
 }
 
-func getList(uni *context.Uni, noun string, params ...string) []interface{} {
-
-	values := strToValues(params...)
+func getList(uni *context.Uni, noun string, params ...interface{}) []interface{} {
+	values := convert.ListToMap(params...)
 	desc, err := glue.Identify("/"+noun, uni.Opt["nouns"].(map[string]interface{}), values)
 	inp, data, err := desc.CreateInputs(uni.FilterCreator)
 	if err != nil {
@@ -241,7 +235,7 @@ func getList(uni *context.Uni, noun string, params ...string) []interface{} {
 }
 
 func decodeId(s string) string {
-	val := scut.DecodeIdP(s)
+	val := convert.DecodeIdP(s)
 	return val.Hex()
 }
 
@@ -317,17 +311,17 @@ func builtins(uni *context.Uni) map[string]interface{} {
 		"type_of":	typeOf,
 		"same_kind": sameKind,
 		"title": strings.Title,
-		"url": func(action_name string, i ...string) string {
+		"url": func(action_name string, i ...interface{}) string {
 			return _url(action_name, uni.Route, uni.Sentence, i...) 
 		},
 		"form": func(action_name string) *Form {
 			return form(action_name, uni.Route, uni.Sentence)
 		},
 		"counter": newcounter,
-		"get_sub": func(s string, params ...string) []interface{} {
+		"get_sub": func(s string, params ...interface{}) []interface{} {
 			return getSub(uni, s, params...)
 		},
-		"get_list": func(s string, params ...string) []interface{} {
+		"get_list": func(s string, params ...interface{}) []interface{} {
 			return getList(uni, s, params...)
 		},
 		"decode_id": decodeId,

@@ -2,13 +2,19 @@ package lang_test
 
 import(
 	"testing"
-	"net/url"
 	"github.com/opesun/chill/frame/lang"
+	"github.com/opesun/chill/frame/misc/convert"
 )
+
+type Values map[string]interface{}
+
+func (v Values) Add(i string, value interface{}) {
+	convert.MapAdd(v, i, value)
+}
 
 func TestRoute(t *testing.T) {
 	path := "/cars/comments"
-	query := url.Values{}
+	query := Values{}
 	query.Add("make", "bmw")
 	query.Add("engine", "4000")
 	query.Add("1public", "true")
@@ -29,7 +35,7 @@ func TestRoute(t *testing.T) {
 
 func TestRoute1(t *testing.T) {
 	path := "/x/y/z"
-	query := url.Values{}
+	query := Values{}
 	route, err := lang.NewRoute(path, query)
 	if err != nil {
 		t.Fatal(err)
@@ -41,7 +47,7 @@ func TestRoute1(t *testing.T) {
 
 func TestRoute2(t *testing.T) {
 	path := "/x"
-	query := url.Values{}
+	query := Values{}
 	query.Add("4hello", "this should fail")
 	_, err := lang.NewRoute(path, query)
 	if err == nil {
@@ -70,7 +76,7 @@ func (m MockSpeaker) NounHasVerb(n, v string) bool {
 
 func TestSentence(t *testing.T) {
 	path := "/cars/ignite"
-	query := url.Values{}
+	query := Values{}
 	route, err := lang.NewRoute(path, query)
 	if err != nil {
 		t.Fatal()
@@ -87,7 +93,7 @@ func TestSentence(t *testing.T) {
 
 func TestSentece1(t *testing.T) {
 	path := "/cars/not-existing-verb"
-	query := url.Values{}
+	query := Values{}
 	route, err := lang.NewRoute(path, query)
 	if err != nil {
 		t.Fatal()
@@ -101,7 +107,7 @@ func TestSentece1(t *testing.T) {
 
 func TestSentece2(t *testing.T) {
 	path := "/not-existing-noun/ignite"
-	query := url.Values{}
+	query := Values{}
 	route, err := lang.NewRoute(path, query)
 	if err != nil {
 		t.Fatal()
@@ -115,7 +121,7 @@ func TestSentece2(t *testing.T) {
 
 func TestSingle(t *testing.T) {
 	path := "/cars/UHPHs2-Q6Q7Ey1gJ"
-	query := url.Values{}
+	query := Values{}
 	route, err := lang.NewRoute(path, query)
 	if err != nil {
 		t.Fatal()
@@ -132,7 +138,7 @@ func TestSingle(t *testing.T) {
 
 func TestURLEncoderUrlGet(t *testing.T) {
 	path := "/cars"
-	query := url.Values{}
+	query := Values{}
 	query.Add("favourites", "true")
 	route, err := lang.NewRoute(path, query)
 	if err != nil {
@@ -147,7 +153,7 @@ func TestURLEncoderUrlGet(t *testing.T) {
 		t.Fatal()
 	}
 	urle := lang.NewURLEncoder(route, sentence)
-	u1 := url.Values{}
+	u1 := Values{}
 	u1.Add("color", "red")
 	u1.Add("color", "blue")
 	u1.Add("quality", "very high")
@@ -155,7 +161,7 @@ func TestURLEncoderUrlGet(t *testing.T) {
 	if path != "cars/paint" {
 		t.Fatal()
 	}
-	if merged["favourites"][0] != "true" || merged["1color"][0] != "red" || merged["1color"][1] != "blue" || merged["1quality"][0] != "very high" {
+	if merged["favourites"] != "true" || merged["1color"].([]interface{})[0] != "red" || merged["1color"].([]interface{})[1] != "blue" || merged["1quality"] != "very high" {
 		t.Fatal()
 	}
 	if len(merged) != 3 {
@@ -165,7 +171,7 @@ func TestURLEncoderUrlGet(t *testing.T) {
 
 func TestURLEncoderUrlNonGet(t *testing.T) {
 	path := "/cars/ignite"
-	query := url.Values{}
+	query := Values{}
 	query.Add("favourites", "true")
 	query.Add("1fake", "11")
 	route, err := lang.NewRoute(path, query)
@@ -181,7 +187,7 @@ func TestURLEncoderUrlNonGet(t *testing.T) {
 		t.Fatal()
 	}
 	urle := lang.NewURLEncoder(route, sentence)
-	u1 := url.Values{}
+	u1 := Values{}
 	u1.Add("color", "red")
 	u1.Add("color", "blue")
 	u1.Add("quality", "very high")
@@ -189,14 +195,14 @@ func TestURLEncoderUrlNonGet(t *testing.T) {
 	if path != "cars/paint" {
 		t.Fatal()
 	}
-	if merged["favourites"][0] != "true" || merged["1color"][0] != "red" || merged["1color"][1] != "blue" || merged["1quality"][0] != "very high" {
+	if merged["favourites"] != "true" || merged["1color"].([]interface{})[0] != "red" || merged["1color"].([]interface{})[1] != "blue" || merged["1quality"] != "very high" {
 		t.Fatal()
 	}
 }
 
 func TestUrlEncoderForm(t *testing.T) {
 	path := "/cars/UHPHs2-Q6Q7Ey1gJ/comments/flame"
-	query := url.Values{}
+	query := Values{}
 	query.Add("favourites", "true")
 	query.Add("1fake", "11")
 	route, err := lang.NewRoute(path, query)
@@ -216,7 +222,7 @@ func TestUrlEncoderForm(t *testing.T) {
 	if form.KeyPrefix != "1" {
 		t.Fatal(form.KeyPrefix)
 	}
-	if len(form.FilterFields) != 2 || form.FilterFields["favourites"][0] != "true" || form.FilterFields["1fake"][0] != "11" {
+	if len(form.FilterFields) != 2 || form.FilterFields["favourites"] != "true" || form.FilterFields["1fake"] != "11" {
 		t.Fatal()
 	}
 	if form.ActionPath != "cars/UHPHs2-Q6Q7Ey1gJ/comments/whatever-action" {
@@ -226,7 +232,7 @@ func TestUrlEncoderForm(t *testing.T) {
 
 func TestUrlEncoderForm1(t *testing.T) {
 	path := "/cars/ignite"
-	query := url.Values{}
+	query := Values{}
 	route, err := lang.NewRoute(path, query)
 	if err != nil {
 		t.Fatal()

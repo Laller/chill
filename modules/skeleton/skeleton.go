@@ -3,7 +3,7 @@ package skeleton
 import(
 	"github.com/opesun/chill/frame/context"
 	"github.com/opesun/jsonp"
-	"github.com/opesun/chill/frame/misc/scut"
+	"github.com/opesun/chill/frame/misc/convert"
 	iface "github.com/opesun/chill/frame/interfaces"
 	"github.com/opesun/chill/frame/composables/basics"
 	"fmt"
@@ -31,7 +31,7 @@ func (c *C) New(a iface.Filter) ([]map[string]interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	return scut.SchemeToFields(scheme, nil)
+	return convert.SchemeToFields(scheme, nil)
 }
 
 func (c *C) Edit(a iface.Filter) ([]map[string]interface{}, error) {
@@ -43,5 +43,5 @@ func (c *C) Edit(a iface.Filter) ([]map[string]interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	return scut.SchemeToFields(scheme, doc)
+	return convert.SchemeToFields(scheme, doc)
 }

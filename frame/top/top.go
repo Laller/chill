@@ -5,6 +5,7 @@ import(
 	"github.com/opesun/chill/frame/config"
 	"github.com/opesun/chill/frame/mod"
 	"github.com/opesun/chill/frame/misc/scut"
+	"github.com/opesun/chill/frame/misc/convert"
 	"github.com/opesun/chill/frame/display"
 	"github.com/opesun/chill/frame/filter"
 	"github.com/opesun/chill/frame/set"
@@ -133,7 +134,7 @@ func (t *Top) route() error {
 	uni.FilterCreator = func(c string, input map[string]interface{}) iface.Filter {
 		return filterCreator(uni.Db, nouns, input, c)
 	}
-	desc, err := glue.Identify(uni.Path, nouns, uni.Req.Form)
+	desc, err := glue.Identify(uni.Path, nouns, convert.Mapify(uni.Req.Form))
 	if err != nil {
 		display.D(uni)
 		return nil

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"github.com/opesun/chill/frame/context"
 	"github.com/opesun/chill/frame/misc/scut"
+	"github.com/opesun/chill/frame/misc/convert"
 	"github.com/opesun/chill/frame/display/model"
 	"github.com/opesun/jsonp"
 	"github.com/opesun/require"
@@ -270,7 +271,7 @@ func D(uni *context.Uni) {
 	BeforeDisplay(uni)
 	// While it is not the cheapest solution to convert bson.ObjectIds to strings here, where we have to iterate trough all values,
 	// it is still better than remembering (and forgetting) to convert it at every specific place.
-	scut.IdsToStrings(uni.Dat)
+	convert.IdsToStrings(uni.Dat)
 	langs, _ := jsonp.Get(uni.Dat, "_user.languages") // _user always has language member
 	langs_s := toStringSlice(langs)
 	loc, _ := display_model.LoadLocStrings(uni.Dat, langs_s, uni.Root, scut.GetTPath(uni.Opt, uni.Req.Host), nil) // TODO: think about errors here.

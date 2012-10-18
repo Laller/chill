@@ -1,11 +1,9 @@
 package glue
 
 import(
-	"github.com/opesun/chill/frame/misc/convert"
 	"github.com/opesun/chill/frame/mod"
 	"github.com/opesun/chill/frame/lang"
 	"github.com/opesun/chill/frame/lang/speaker"
-	"net/url"
 	"fmt"
 	iface "github.com/opesun/chill/frame/interfaces"
 	"github.com/opesun/chill/frame/verbinfo"
@@ -26,7 +24,7 @@ func moduleHasVerb(modname string, verbname string) bool {
 	return mo.Instance().HasMethod(verbname)
 }
 
-func Identify(path string, nouns map[string]interface{}, inp url.Values) (*Descriptor, error) {
+func Identify(path string, nouns map[string]interface{}, inp map[string]interface{}) (*Descriptor, error) {
 	desc := &Descriptor{}
 	r, err := lang.NewRoute(path, inp)
 	if err != nil {
@@ -73,7 +71,7 @@ func (d *Descriptor) CreateInputs(filterCreator func(string, map[string]interfac
 	var data map[string]interface{}
 	source := []map[string]interface{}{}
 	for _, v := range d.Route.Queries {
-		source = append(source, convert.URLValuesToMap(v))
+		source = append(source, v)
 	}
 	if an.NeedsData() {
 		data = source[len(source)-1]

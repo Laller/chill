@@ -1,12 +1,12 @@
 package lang
 
 import(
-	"net/url"
 	"strconv"
 	"strings"
 	"fmt"
 	"regexp"
 	iface "github.com/opesun/chill/frame/interfaces"
+	"github.com/opesun/chill/frame/misc/convert"
 )
 
 func ToCodeStyle(a string) string {
@@ -37,7 +37,7 @@ func ToFileStyle(a string) string {
 type Route struct {
 	checked			int
 	Words			[]string
-	Queries			[]url.Values
+	Queries			[]map[string]interface{}
 }
 
 type URLEncoder struct {
@@ -49,15 +49,23 @@ func NewURLEncoder(r *Route, s *Sentence) *URLEncoder {
 	return &URLEncoder{r, s}
 }
 
-func loneId(a url.Values) bool {
-	if len(a) == 1 && a["id"] != nil && len(a["id"]) == 1 {
-		return true
+func loneId(a map[string]interface{}) bool {
+	if len(a) != 1 {
+		return false
 	}
-	return false
+	if a["id"] == nil {
+		return false
+	}
+	if slice, yepp := a["id"].([]interface{}); yepp {
+		if len(slice) > 1 {
+			return false
+		}
+	}
+	return true
 }
 
-func extractLone(a url.Values) string {
-	return a["id"][0]
+func extractLone(a map[string]interface{}) string {
+	return a["id"].(string)
 }
 
 func (u *URLEncoder) actionPath(action_name string) string {
@@ -82,18 +90,19 @@ func (u *URLEncoder) actionPath(action_name string) string {
 	return path
 }
 
-func (u *URLEncoder) UrlString(action_name string, input_params url.Values) string {
-	path, merged := u.Url(action_name, input_params)
-	qu := merged.Encode()
+func (u *URLEncoder) UrlString(action_name string, input_params map[string]interface{}) string {
+	path, _ := u.Url(action_name, input_params)
+	//qu := merged.Encode()
+	qu := ""
 	if len(qu) > 0 {
 		path = path+"?"+qu
 	}
 	return path
 }
 
-func (u *URLEncoder) Url(action_name string, input_params url.Values) (string, url.Values) {
+func (u *URLEncoder) Url(action_name string, input_params map[string]interface{}) (string, map[string]interface{}) {
 	path := u.actionPath(action_name)
-	var l []url.Values
+	var l []map[string]interface{}
 	if u.s.Verb != "Get" && u.s.Verb != "GetSingle" {
 		l = u.r.Queries
 		l[len(l)-1] = input_params
@@ -104,12 +113,12 @@ func (u *URLEncoder) Url(action_name string, input_params url.Values) (string, u
 }
 
 type Form struct {
-	FilterFields	url.Values
+	FilterFields	map[string]interface{}
 	ActionPath		string
 	KeyPrefix		string
 }
 
-func keyPrefix(q []url.Values) int {
+func keyPrefix(q []map[string]interface{}) int {
 	dec := 0
 	for _, v := range q {
 		if loneId(v) {
@@ -119,7 +128,7 @@ func keyPrefix(q []url.Values) int {
 	return len(q)-dec-1
 }
 
-func keyPrefixString(q []url.Values) string {
+func keyPrefixString(q []map[string]interface{}) string {
 	return strconv.Itoa(keyPrefix(q))
 }
 
@@ -131,8 +140,8 @@ func (u *URLEncoder) Form(action_name string) *Form {
 	return f
 }
 
-func EncodeQueries(queries []url.Values, ignore_lone_id bool) url.Values {
-	u := url.Values{}
+func EncodeQueries(queries []map[string]interface{}, ignore_lone_id bool) map[string]interface{} {
+	u := map[string]interface{}{}
 	dec := 0
 	for i, v := range queries {
 		if ignore_lone_id && loneId(v) {
@@ -144,15 +153,19 @@ func EncodeQueries(queries []url.Values, ignore_lone_id bool) url.Values {
 			prefix = strconv.Itoa(i-dec)
 		}
 		for j, x := range v {
-			for _, z := range x {
-				u.Add(prefix+j, z)
+			if _, yepp := x.([]interface{}); yepp {
+				for _, z := range x.([]interface{}) {
+					convert.MapAdd(u, prefix+j, z)
+				}
+			} else {
+				u[prefix+j] = x
 			}
 		}
 	}
 	return u
 }
 
-func (r *Route) EncodeQueries(ignore_lone_id bool) url.Values {
+func (r *Route) EncodeQueries(ignore_lone_id bool) map[string]interface{} {
 	return EncodeQueries(r.Queries, ignore_lone_id)
 }
 
@@ -170,8 +183,8 @@ func (r *Route) DropOne() {
 	r.Queries = r.Queries[:len(r.Queries)-1]
 }
 
-func sortParams(q url.Values) map[int]url.Values {
-	sorted := map[int]url.Values{}
+func sortParams(q map[string]interface{}) map[int]map[string]interface{} {
+	sorted := map[int]map[string]interface{}{}
 	for i, v := range q {
 		num, err := strconv.Atoi(string(i[0]))
 		nummed := false
@@ -184,16 +197,20 @@ func sortParams(q url.Values) map[int]url.Values {
 			i = i[1:]
 		}
 		if _, has := sorted[num]; !has {
-			sorted[num] = url.Values{}
+			sorted[num] = map[string]interface{}{}
 		}
-		for _, x := range v {
-			sorted[num].Add(i, x)
+		if _, ok := v.([]interface{}); ok {
+			for _, x := range v.([]interface{}) {
+				convert.MapAdd(sorted[num], i, x)
+			}
+		} else {
+			sorted[num][i] = v
 		}
 	}
 	return sorted
 }
 
-func hasLargerThan(q map[int]url.Values, n int) bool {
+func hasLargerThan(q map[int]map[string]interface{}, n int) bool {
 	for i := range q {
 		if i > n {
 			return true
@@ -216,10 +233,10 @@ func extractId(next string) string {
 // /cars/:id becomes /cars?id=:id
 // and expanding the flattened query params, eg.
 // /cars/comments?make=bmw&1date=today becomes /cars?make=bmw /comments?date=today
-func NewRoute(path string, q url.Values) (*Route, error) {
+func NewRoute(path string, q map[string]interface{}) (*Route, error) {
 	ps := strings.Split(path, "/")
 	r := &Route{}
-	r.Queries = []url.Values{}
+	r.Queries = []map[string]interface{}{}
 	r.Words = []string{}
 	if len(ps) < 1 {
 		return r, fmt.Errorf("Wtf.")
@@ -230,13 +247,28 @@ func NewRoute(path string, q url.Values) (*Route, error) {
 	for i:=0;i<len(ps);i++ {
 		v := ps[i]
 		r.Words = append(r.Words, v)
-		r.Queries = append(r.Queries, url.Values{})
+		r.Queries = append(r.Queries, map[string]interface{}{})
 		qi := len(r.Words)-1
 		if len(ps) > i+1 {	// We are not at the end.
 			next := ps[i+1]
 			if nextIsId(v, next) {	// Id query in url., eg /users/fxARrttgFd34xdv7
 				skipped++
-				r.Queries[qi].Add("id", extractId(next))
+				cq := r.Queries[qi]
+				val, has := cq["id"]
+				if !has {
+					cq["id"] = extractId(next)
+				} else {
+					slice, ok := val.([]interface{})
+					if !ok {
+						sl := []interface{}{}
+						sl = append(sl, val)
+						sl = append(sl, extractId(next))
+						slice = sl
+					} else {
+						slice = append(slice, extractId(next))
+					}
+					r.Queries[qi]["id"] = slice
+				}
 				i++
 				continue
 			}

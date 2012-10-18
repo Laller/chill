@@ -4,7 +4,7 @@ import(
 	"fmt"
 	iface "github.com/opesun/chill/frame/interfaces"
 	"labix.org/v2/mgo/bson"
-	"github.com/opesun/chill/frame/misc/scut"
+	"github.com/opesun/chill/frame/misc/convert"
 	"strconv"
 )
 
@@ -72,7 +72,7 @@ type data struct {
 func processMap(inp map[string]interface{}) *data {
 	d := &data{}
 	if inp == nil {
-		return d
+		inp = map[string]interface{}{}
 	}
 	if val, has := inp["parentf"]; has {
 		d.parentField = val.(string)
@@ -109,12 +109,15 @@ func processMap(inp map[string]interface{}) *data {
 		mods.skip = (pagev-1)*mods.limit
 		delete(inp, "page")
 	}
+	fmt.Println("MODS", mods)
 	d.mods = mods
+	fmt.Println("D:MODS", d.mods)
 	d.query = toQuery(inp)
+	fmt.Println("DSDD", d, *d)
 	return d
 }
 
-// inp: url.Values => map, returns query map
+// map => mongodb query map
 func toQuery(a map[string]interface{}) map[string]interface{} {
 	r := map[string]interface{}{}
 	for i, v := range a {
@@ -123,7 +126,7 @@ func toQuery(a map[string]interface{}) map[string]interface{} {
 			for _, x := range slice {
 				if i == "id" {
 					i = "_id"
-					vi = append(vi, scut.DecodeIdP(v.(string)))
+					vi = append(vi, convert.DecodeIdP(v.(string)))
 				} else {
 					vi = append(vi, x)
 				}
@@ -131,7 +134,7 @@ func toQuery(a map[string]interface{}) map[string]interface{} {
 		} else {
 			if i == "id" {
 				i = "_id"
-				vi = append(vi, scut.DecodeIdP(v.(string)))
+				vi = append(vi, convert.DecodeIdP(v.(string)))
 			} else {
 				vi = append(vi, v)
 			}
@@ -155,7 +158,9 @@ func NewSimple(set iface.Set) *Filter {
 }
 
 func New(set iface.Set, all map[string]interface{}) *Filter {
+	fmt.Println("ALKLL", all)
 	d := processMap(all)
+	fmt.Println("SHOULD NOT BE NIL", d.mods)
 	f := &Filter{
 		set:			set,
 		mods:			d.mods,
