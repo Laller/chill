@@ -100,7 +100,7 @@ func (u *URLEncoder) Url(action_name string, input_params url.Values) (string, u
 	} else {
 		l = append(u.r.Queries, input_params)
 	}
-	return path, encodeQueries(l, true)
+	return path, EncodeQueries(l, true)
 }
 
 type Form struct {
@@ -127,11 +127,11 @@ func (u *URLEncoder) Form(action_name string) *Form {
 	f := &Form{}
 	f.ActionPath = u.actionPath(action_name)
 	f.KeyPrefix = keyPrefixString(u.r.Queries)
-	f.FilterFields = u.r.encodeQueries(true)
+	f.FilterFields = u.r.EncodeQueries(true)
 	return f
 }
 
-func encodeQueries(queries []url.Values, ignore_lone_id bool) url.Values {
+func EncodeQueries(queries []url.Values, ignore_lone_id bool) url.Values {
 	u := url.Values{}
 	dec := 0
 	for i, v := range queries {
@@ -152,8 +152,8 @@ func encodeQueries(queries []url.Values, ignore_lone_id bool) url.Values {
 	return u
 }
 
-func (r *Route) encodeQueries(ignore_lone_id bool) url.Values {
-	return encodeQueries(r.Queries, ignore_lone_id)
+func (r *Route) EncodeQueries(ignore_lone_id bool) url.Values {
+	return EncodeQueries(r.Queries, ignore_lone_id)
 }
 
 func (r *Route) Get() string {

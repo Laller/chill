@@ -5,9 +5,11 @@ package display
 import (
 	"github.com/opesun/chill/frame/context"
 	"github.com/opesun/chill/frame/lang"
+	"github.com/opesun/chill/frame/glue"
 	"github.com/opesun/chill/frame/misc/scut"
 	"github.com/opesun/jsonp"
 	"github.com/opesun/paging"
+	"labix.org/v2/mgo/bson"
 	"github.com/opesun/numcon"
 	"html/template"
 	"reflect"
@@ -138,12 +140,17 @@ func _url(action_name string, r *lang.Route, s *lang.Sentence, i ...string) stri
 	if len(i)%2 == 1 {
 		panic("Must be even.")
 	}
-	inp := url.Values{}
+	inp := strToValues(i...)
+	return f.UrlString(action_name, inp)
+}
+
+func strToValues(i ...string) url.Values {
+	r := url.Values{}
 	for x:=0;x<len(i)-1; {
-		inp.Add(i[x], i[x+1])
+		r.Add(i[x], i[x+1])
 		x = x+2
 	}
-	return f.UrlString(action_name, inp)
+	return r
 }
 
 type counter int
@@ -169,14 +176,77 @@ func (c counter) EveryX(i int) bool {
 	return int(c)%i==0
 }
 
-// Works from a Get or GetSingle only.
+// Mainly designed to work from Get or GetSingle
 func getSub(uni *context.Uni, noun string, params ...string) []interface{} {
-	return nil
+	if uni.Route == nil && uni.Sentence == nil {
+		panic("Nothing to do here.")
+	}
+	s := uni.Sentence
+	r := uni.Route
+	var path string
+	var urls []url.Values
+	if s.Verb != "Get" && s.Verb != "GetSingle" {
+		path = "/" + strings.Join(r.Words, "/") + "/" + noun
+		urls = append(urls, r.Queries...)
+		urls = append(urls, strToValues(params...))
+	} else {
+		path = "/" + strings.Join(r.Words, "/") + "/" + noun
+		urls = append(urls, r.Queries[:len(r.Queries)-1]...)
+		urls = append(urls, strToValues(params...))
+	}
+	desc, err := glue.Identify(path, uni.Opt["nouns"].(map[string]interface{}), lang.EncodeQueries(urls, false))
+	inp, data, err := desc.CreateInputs(uni.FilterCreator)
+	if err != nil {
+		panic(err)
+	}
+	if data != nil {
+		inp = append(inp, data)
+	}
+	module := uni.NewModule(desc.VerbLocation)
+	if !module.Exists() {
+		panic("Module does not exist.")
+	}
+	ins := module.Instance()
+	ret := []interface{}{}
+	ret_rec := func(i ...interface{}) {
+		ret = i
+	}
+	ins.Method(uni.Sentence.Verb).Call(ret_rec, inp...)
+	return ret
+}
+
+func getList(uni *context.Uni, noun string, params ...string) []interface{} {
+
+	values := strToValues(params...)
+	desc, err := glue.Identify("/"+noun, uni.Opt["nouns"].(map[string]interface{}), values)
+	inp, data, err := desc.CreateInputs(uni.FilterCreator)
+	if err != nil {
+
+		panic(err)
+	}
+	if data != nil {
+		inp = append(inp, data)
+	}
+	module := uni.NewModule(desc.VerbLocation)
+	if !module.Exists() {
+		panic("Module does not exist.")
+	}
+	ins := module.Instance()
+	ret := []interface{}{}
+	ret_rec := func(i ...interface{}) {
+		ret = i
+	}
+	ins.Method("Get").Call(ret_rec, inp...)
+	return ret
 }
 
 func decodeId(s string) string {
 	val := scut.DecodeIdP(s)
 	return val.Hex()
+}
+
+func hexId(a bson.ObjectId) string {
+	return a.Hex()
 }
 
 type pagr struct {
@@ -191,11 +261,10 @@ func pager(uni *context.Uni, pagestr string, count, limit int) []paging.Pelem {
 	if len(pagestr) == 0 {
 		pagestr = "1"
 	}
-	fmt.Println("PGE", pagestr)
 	if limit == 0 {
 		return nil
 	}
-	p := uni.P + "?" + uni.Req.URL.RawQuery
+	p := uni.Path + "?" + uni.Req.URL.RawQuery
 	page, err := strconv.Atoi(pagestr)
 	if err != nil {
 		return nil	// Not blowing up here.
@@ -206,6 +275,10 @@ func pager(uni *context.Uni, pagestr string, count, limit int) []paging.Pelem {
 	page_count := count/limit+1
 	nav, _ := paging.P(page, page_count, 3, p)
 	return nav
+}
+
+func elem(s []interface{}, memb int) interface{} {
+	return s[memb]
 }
 
 // We must recreate this map each time because map write is not threadsafe.
@@ -245,16 +318,21 @@ func builtins(uni *context.Uni) map[string]interface{} {
 		"same_kind": sameKind,
 		"title": strings.Title,
 		"url": func(action_name string, i ...string) string {
-			return _url(action_name, uni.R, uni.S, i...) 
+			return _url(action_name, uni.Route, uni.Sentence, i...) 
 		},
 		"form": func(action_name string) *Form {
-			return form(action_name, uni.R, uni.S)
+			return form(action_name, uni.Route, uni.Sentence)
 		},
 		"counter": newcounter,
 		"get_sub": func(s string, params ...string) []interface{} {
 			return getSub(uni, s, params...)
 		},
+		"get_list": func(s string, params ...string) []interface{} {
+			return getList(uni, s, params...)
+		},
 		"decode_id": decodeId,
+		"hex_id": hexId,
+		"elem": elem,
 		"pager": func(pagesl []string, count, limited int) []paging.Pelem {
 			var pagestr string
 			if len(pagesl) == 0 {
@@ -265,5 +343,6 @@ func builtins(uni *context.Uni) map[string]interface{} {
 			return pager(uni, pagestr, count, limited)
 		},
 	}
+	uni.Ev.Fire("AddTemplateBuiltin", ret)
 	return ret
 }

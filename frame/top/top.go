@@ -66,7 +66,7 @@ func (t *Top) Post(ret []interface{}) {
 	if ran.HadError() {
 		err = ran.Error()
 	}
-	t.actionResponse(err, uni.S.Verb)
+	t.actionResponse(err, uni.Sentence.Verb)
 }
 
 func (t *Top) Route() {
@@ -111,7 +111,8 @@ func filterCreator(db *mgo.Database, nouns, input map[string]interface{}, c stri
 
 func (t *Top) route() error {
 	uni := t.uni
-	if t.config.ServeFiles && strings.Index(uni.Paths[len(uni.Paths)-1], ".") != -1 {
+	paths := strings.Split(uni.Path, "/")
+	if t.config.ServeFiles && strings.Index(paths[len(paths)-1], ".") != -1 {
 		t.serveFile()
 		return nil
 	}
@@ -129,7 +130,10 @@ func (t *Top) route() error {
 	if _, ok := nouns["options"]; !ok {
 		nouns["options"] = opt_def
 	}
-	desc, err := glue.Identify(uni.P, nouns, uni.Req.Form)
+	uni.FilterCreator = func(c string, input map[string]interface{}) iface.Filter {
+		return filterCreator(uni.Db, nouns, input, c)
+	}
+	desc, err := glue.Identify(uni.Path, nouns, uni.Req.Form)
 	if err != nil {
 		display.D(uni)
 		return nil
@@ -143,10 +147,7 @@ func (t *Top) route() error {
 	if scut.Ulev(uni.Dat["_user"]) < lev {
 		return fmt.Errorf("Not allowed.")
 	}
-	filterCreator := func(c string, input map[string]interface{}) iface.Filter {
-		return filterCreator(uni.Db, nouns, input, c)
-	}
-	inp, data, err := desc.CreateInputs(filterCreator)
+	inp, data, err := desc.CreateInputs(uni.FilterCreator)
 	if err != nil {
 		return err
 	}
@@ -159,15 +160,14 @@ func (t *Top) route() error {
 		}
 		inp = append(inp, data)
 	}
-	uni.R = desc.Route
-	uni.S = desc.Sentence
+	uni.Route = desc.Route
+	uni.Sentence = desc.Sentence
 	module := t.uni.NewModule(desc.VerbLocation)
 	if !module.Exists() {
 		return fmt.Errorf("Unkown module.")
 	}
 	ins := module.Instance()
-	ins.Method("Init").Call(nil, t.uni)
-	ins.Method(uni.S.Verb).Call(ret_rec, inp...)
+	ins.Method(uni.Sentence.Verb).Call(ret_rec, inp...)
 	if uni.Req.Method == "GET" {
 		uni.Dat["main_noun"] = desc.Sentence.Noun
 		uni.Dat["_points"] = []string{desc.Sentence.Noun + "/" + desc.Sentence.Verb, desc.VerbLocation + "/" + desc.Sentence.Verb}
@@ -208,8 +208,7 @@ func New(session *mgo.Session, db *mgo.Database, w http.ResponseWriter, req *htt
 		Put:     	put,
 		Dat:     	make(map[string]interface{}),
 		Root:    	config.AbsPath,
-		P:       	req.URL.Path,
-		Paths:   	strings.Split(req.URL.Path, "/"),
+		Path:       req.URL.Path,
 		NewModule:	mod.NewModule,
 	}
 	err = uni.Req.ParseMultipartForm(1000000)		// Should we handle the error return of this?

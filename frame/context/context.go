@@ -15,23 +15,23 @@ import (
 
 // General context for the application.
 type Uni struct {
-	Modifiers	map[string]interface{}
-	Session 	*mgo.Session
-	Db      	*mgo.Database
-	W       	http.ResponseWriter
-	Req     	*http.Request
-	secret  	string                 		// Used for things like encryption/decryption. Basically a permanent random data.
-	P       	string                 		// Path string
-	Paths   	[]string               		// Path slice, contains the url (after the domain) splitted by "/"
-	opt     	string                 		// Original string representation of the option, if one needs a version which is guaranteedly untinkered.
-	Opt     	map[string]interface{} 		// Freshest options from database.
-	Dat     	map[string]interface{} 		// General communication channel.
-	Put     	func(...interface{})   		// Just a convenience function to allow fast output to http response.
-	Root    	string                 		// Absolute path of the application.
-	Ev      	*Ev
-	R			*lang.Route
-	S			*lang.Sentence
-	NewModule	func(string) iface.Module
+	Modifiers			map[string]interface{}
+	Session 			*mgo.Session
+	Db      			*mgo.Database
+	W       			http.ResponseWriter
+	Req     			*http.Request
+	secret  			string                 		// Used for things like encryption/decryption. Basically a permanent random data.
+	Path       			string                 		// Path string
+	opt     			string                 		// Original string representation of the option, if one needs a version which is guaranteedly untinkered.
+	Opt     			map[string]interface{} 		// Freshest options from database.
+	Dat     			map[string]interface{} 		// General communication channel.
+	Put     			func(...interface{})   		// Just a convenience function to allow fast output to http response.
+	Root    			string                 		// Absolute path of the application.
+	Ev      			*Ev
+	Route				*lang.Route
+	Sentence			*lang.Sentence
+	FilterCreator		func(string, map[string]interface{}) iface.Filter
+	NewModule			func(string) iface.Module
 }
 
 // Set only once.
