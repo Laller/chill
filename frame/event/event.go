@@ -3,7 +3,6 @@ package event
 import(
 	"github.com/opesun/jsonp"
 	iface "github.com/opesun/chill/frame/interfaces"
-	"github.com/opesun/chill/frame/context"
 	"strings"
 	"reflect"
 	"fmt"
@@ -11,28 +10,49 @@ import(
 
 // Used to call subscribed hooks.
 type Ev struct {
-	uni    		*context.Uni
-	cache		map[string]iface.Instance
+	hooks		map[string]interface{}
+	passOn   	interface{}						// We pass this on to the Init method of the module instances. In reality, this is a *context.Uni.
+	cache		map[string]iface.Instance		// Module instance cache.
 	newModule	func(string) iface.Module
 }
 
-func NewEv(uni *context.Uni, newModule func(string)iface.Module) *Ev {
+func New(pass_on interface{}, hooks map[string]interface{}, newModule func(string)iface.Module) *Ev {
+	if hooks == nil {
+		hooks = map[string]interface{}{}
+	}
 	return &Ev{
-		uni,
+		hooks,
+		pass_on,
 		map[string]iface.Instance{},
 		newModule,
 	}
 }
 
+type hookInf struct {
+	modName			string
+	methodName		string
+}
+
 // Return all hooks modules subscribed to a path.
-func all(e *Ev, path string) []string {
-	modnames, ok := jsonp.GetS(e.uni.Opt, "Hooks." + path)
+func all(e *Ev, path string) []hookInf {
+	ret := []hookInf{}
+	subscribed, ok := jsonp.GetS(e.hooks, path)
 	if !ok {
-		return nil
+		return ret
 	}
-	ret := []string{}
-	for _, v := range modnames {
-		ret = append(ret, v.(string))
+	for _, v := range subscribed {
+		hinf := hookInf{}
+		switch t := v.(type) {
+		case string:
+			hinf.modName = t
+		case []interface{}:
+			if len(t) != 2 {
+				panic("Misconfigured hook.")
+			}
+			hinf.modName = t[0].(string)
+			hinf.methodName = t[1].(string)
+		}
+		ret = append(ret, hinf)
 	}
 	return ret
 }
@@ -41,7 +61,7 @@ func all(e *Ev, path string) []string {
 type InstanceCacher struct {
 				iface.Module
 	cache 		map[string]iface.Instance
-	uni			*context.Uni
+	passOn		interface{}
 	name		string
 }
 
@@ -54,7 +74,7 @@ func (m InstanceCacher) Instance() iface.Instance {
 		}
 		insta := m.Module.Instance()
 		if insta.HasMethod("Init") {
-			insta.Method("Init").Call(nil, m.uni)
+			insta.Method("Init").Call(nil, m.passOn)
 		}
 		m.cache[m.name] = insta
 		return insta
@@ -67,7 +87,7 @@ func (e *Ev) NewModuleProducer() func(string) iface.Module {
 		return &InstanceCacher{
 			e.newModule(modname),
 			e.cache,
-			e.uni,
+			e.passOn,
 			modname,
 		}
 	}
@@ -106,11 +126,11 @@ func (e *Ev) instance(modname string) iface.Instance {
 	}
 	mo := e.newModule(modname)
 	if !mo.Exists() {
-		panic(fmt.Sprintf("Module %v modname does not exist.", modname))
+		panic(fmt.Sprintf("Module %v does not exist.", modname))
 	}
 	insta := mo.Instance()
 	if insta.HasMethod("Init") {
-		insta.Method("Init").Call(nil, e.uni)
+		insta.Method("Init").Call(nil, e.passOn)
 	}
 	e.cache[modname] = insta
 	return insta
@@ -118,7 +138,6 @@ func (e *Ev) instance(modname string) iface.Instance {
 
 func (e *Ev) iterate(eventname string, stopfunc interface{}, params ...interface{}) {
 	subscribed := all(e, eventname)
-	hookname := hooknameize(eventname)
 	var stopfunc_numin int
 	if stopfunc != nil {
 		s := reflect.TypeOf(stopfunc)
@@ -128,13 +147,17 @@ func (e *Ev) iterate(eventname string, stopfunc interface{}, params ...interface
 		}
 		stopfunc_numin = s.NumIn()
 	}
-	for _, modname := range subscribed {
-		hook_outp := []reflect.Value{}
-		ins := e.instance(modname)
-		if !ins.HasMethod(hookname) {
-			panic(fmt.Sprintf("Module %v has no method named %v", modname, hookname))
+	nameized := hooknameize(eventname)
+	for _, hinf := range subscribed {
+		if hinf.methodName == "" {
+			hinf.methodName = nameized
+		}
+		ins := e.instance(hinf.modName)
+		if !ins.HasMethod(hinf.methodName) {
+			panic(fmt.Sprintf("Module %v has no method named %v", hinf.modName, hinf.methodName))
 		}
 		var ret_rec interface{}
+		hook_outp := []reflect.Value{}
 		if stopfunc != nil {
 			ret_rec = func(i ...interface{}) {
 				for i, v := range i {
@@ -146,13 +169,13 @@ func (e *Ev) iterate(eventname string, stopfunc interface{}, params ...interface
 				}
 			}
 		}
-		err := ins.Method(hookname).Call(ret_rec, params...)
+		err := ins.Method(hinf.methodName).Call(ret_rec, params...)
 		if err != nil {
 			panic(err)
 		}
 		if stopfunc != nil {
 			if stopfunc_numin != len(hook_outp) {
-				panic(fmt.Sprintf("The number of return values of Hook %v of %v differs from the number of arguments of stopfunc.", hookname, modname))	// This sentence...
+				panic(fmt.Sprintf("The number of return values of Hook %v of %v differs from the number of arguments of stopfunc.", hinf.methodName, hinf.modName))	// This sentence...
 			}
 			stopf := reflect.ValueOf(stopfunc)
 			stopf_ret := stopf.Call(hook_outp)

@@ -6,6 +6,7 @@ import(
 )
 
 type Basics struct {
+	ev iface.Event		// Not entirely sure if the triggering of events should be placed here, we should probably move it above this layer.
 }
 
 type QueryInfo struct {
@@ -39,14 +40,33 @@ func (b *Basics) Insert(a iface.Filter, data map[string]interface{}) (bson.Objec
 	id := bson.NewObjectId()
 	data["_id"] = id
 	err := a.Insert(data)
-	return id, err
+	if err != nil {
+		return "", err
+	}
+	if b.ev != nil {
+		q := map[string]interface{}{
+			
+		}
+		filt := a.Clone().AddQuery(q)
+		b.ev.Fire("Inserted", filt)
+		b.ev.Fire(a.Subject() + "Inserted", filt)
+	}
+	return id, nil
 }
 
 func (b *Basics) Update(a iface.Filter, data map[string]interface{}) error {
 	upd := map[string]interface{}{
 		"$set": data,
 	}
-	return a.Update(upd)
+	err := a.Update(upd)
+	if err != nil {
+		return err
+	}
+	if b.ev != nil {
+		b.ev.Fire("Updated", a)
+		b.ev.Fire(a.Subject() + "Updated", a)
+	}
+	return nil
 }
 
 func (b *Basics) UpdateAll(a iface.Filter, data map[string]interface{}) error {

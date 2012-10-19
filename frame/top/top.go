@@ -223,7 +223,8 @@ func New(session *mgo.Session, db *mgo.Database, w http.ResponseWriter, req *htt
 	if config.DBAdmMode {
 		uni.Session = session
 	}
-	ev := event.NewEv(uni, mod.NewModule)
+	hooks, _ := uni.Opt["Hooks"].(map[string]interface{})
+	ev := event.New(uni, hooks, mod.NewModule)
 	uni.Ev = ev
 	uni.NewModule = ev.NewModuleProducer()
 	opt, opt_str, err := queryConfig(uni.Db, req.Host, config.CacheOpt) // Tricky part about the host, see comments at main_model.

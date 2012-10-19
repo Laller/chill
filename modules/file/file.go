@@ -20,11 +20,13 @@ import(
 type C struct {
 	basics.Basics
 	uni *context.Uni
+	ev iface.Event
 	fileBiz map[string]interface{}
 }
 
 func (c *C) Init(uni *context.Uni) {
 	c.uni = uni
+	c.ev = uni.Ev
 	c.fileBiz = map[string]interface{}{} 
 }
 
@@ -175,7 +177,15 @@ func (c *C) Update(a iface.Filter, data map[string]interface{}) error {
 		delete(data, "_files")
 		upd["$addToSet"] = eachIfNeeded(fileheadersToFilenames(files_map))
 	}
-	return a.Update(upd)
+	err := a.Update(upd)
+	if err != nil {
+		return err
+	}
+	if c.ev != nil {
+		c.ev.Fire("Updated", a)
+		c.ev.Fire(a.Subject() + "Updated", a)
+	}
+	return nil
 }
 
 func (c *C) getScheme(noun, verb string) (map[string]interface{}, error) {

@@ -146,7 +146,7 @@ func toQuery(a map[string]interface{}) map[string]interface{} {
 		} else {
 			vi = convAppend(vi, i, v)
 		}
-		if len(vi) > 1 {
+		if len(vi) > 1 && i[0] != '$' {		// Ex: {"$and": [{"fulltext": ^"whateverr"}, {...}]}
 			r[i] = map[string]interface{}{
 				"$in": vi,
 			}
