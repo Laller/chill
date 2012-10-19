@@ -124,9 +124,9 @@ func processMap(inp map[string]interface{}, ev iface.Event) *data {
 	return d
 }
 
-func convAppend(vi []interface{}, i string, x interface{}) []interface{} {
-	if i == "id" {
-		i = "_id"
+func convAppend(vi []interface{}, i *string, x interface{}) []interface{} {
+	if *i == "id" {
+		*i = "_id"
 		vi = append(vi, convert.DecodeIdP(x.(string)))
 	} else {
 		vi = append(vi, x)
@@ -141,10 +141,10 @@ func toQuery(a map[string]interface{}) map[string]interface{} {
 		var vi []interface{}
 		if slice, ok := v.([]interface{}); ok {
 			for _, x := range slice {
-				vi = convAppend(vi, i, x)
+				vi = convAppend(vi, &i, x)
 			}
 		} else {
-			vi = convAppend(vi, i, v)
+			vi = convAppend(vi, &i, v)
 		}
 		if len(vi) > 1 && i[0] != '$' {		// Ex: {"$and": [{"fulltext": ^"whateverr"}, {...}]}
 			r[i] = map[string]interface{}{
