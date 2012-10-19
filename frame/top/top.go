@@ -223,16 +223,16 @@ func New(session *mgo.Session, db *mgo.Database, w http.ResponseWriter, req *htt
 	if config.DBAdmMode {
 		uni.Session = session
 	}
-	hooks, _ := uni.Opt["Hooks"].(map[string]interface{})
-	ev := event.New(uni, hooks, mod.NewModule)
-	uni.Ev = ev
-	uni.NewModule = ev.NewModuleProducer()
 	opt, opt_str, err := queryConfig(uni.Db, req.Host, config.CacheOpt) // Tricky part about the host, see comments at main_model.
 	if err != nil {
 		return nil, err
 	}
 	uni.Req.Host = scut.Host(req.Host, opt)
 	uni.Opt = opt
+	hooks, _ := uni.Opt["Hooks"].(map[string]interface{})
+	ev := event.New(uni, hooks, mod.NewModule)
+	uni.Ev = ev
+	uni.NewModule = ev.NewModuleProducer()
 	uni.SetOriginalOpt(opt_str)
 	uni.SetSecret(config.Secret)
 	return &Top{uni,config}, nil
