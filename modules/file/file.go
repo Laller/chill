@@ -20,13 +20,12 @@ import(
 type C struct {
 	basics.Basics
 	uni *context.Uni
-	ev iface.Event
 	fileBiz map[string]interface{}
 }
 
 func (c *C) Init(uni *context.Uni) {
 	c.uni = uni
-	c.ev = uni.Ev
+	c.Basics.Ev = uni.Ev
 	c.fileBiz = map[string]interface{}{} 
 }
 
@@ -181,9 +180,9 @@ func (c *C) Update(a iface.Filter, data map[string]interface{}) error {
 	if err != nil {
 		return err
 	}
-	if c.ev != nil {
-		c.ev.Fire("Updated", a)
-		c.ev.Fire(a.Subject() + "Updated", a)
+	if c.Ev != nil {
+		c.Ev.Fire("Updated", a)
+		c.Ev.Fire(a.Subject() + "Updated", a)
 	}
 	return nil
 }
