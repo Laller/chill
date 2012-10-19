@@ -138,6 +138,10 @@ func convAppend(vi []interface{}, i *string, x interface{}) []interface{} {
 func toQuery(a map[string]interface{}) map[string]interface{} {
 	r := map[string]interface{}{}
 	for i, v := range a {
+		if i[0] == '$' {
+			r[i] = v
+			continue
+		}
 		var vi []interface{}
 		if slice, ok := v.([]interface{}); ok {
 			for _, x := range slice {
@@ -146,7 +150,7 @@ func toQuery(a map[string]interface{}) map[string]interface{} {
 		} else {
 			vi = convAppend(vi, &i, v)
 		}
-		if len(vi) > 1 && i[0] != '$' {		// Ex: {"$and": [{"fulltext": ^"whateverr"}, {...}]}
+		if len(vi) > 1 {		// Ex: {"$and": [{"fulltext": ^"whateverr"}, {...}]}
 			r[i] = map[string]interface{}{
 				"$in": vi,
 			}
