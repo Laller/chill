@@ -5,7 +5,7 @@ import(
 	iface "github.com/opesun/chill/frame/interfaces"
 	"labix.org/v2/mgo/bson"
 	"github.com/opesun/chill/frame/misc/convert"
-	"strconv"
+	"github.com/opesun/sanitize"
 )
 
 type Mods struct {
@@ -32,6 +32,7 @@ type Filter struct {
 	parentField		string
 	parents			map[string][]bson.ObjectId
 	query			map[string]interface{}
+	ev				iface.Event
 }
 
 func (f *Filter) Visualize() {
@@ -69,52 +70,68 @@ type data struct {
 
 // Special fields in query:
 // parentf, sort, limit, skip, page
-func processMap(inp map[string]interface{}) *data {
+func processMap(inp map[string]interface{}, ev iface.Event) *data {
 	d := &data{}
 	if inp == nil {
 		inp = map[string]interface{}{}
 	}
-	if val, has := inp["parentf"]; has {
-		d.parentField = val.(string)
-		delete(inp, "parentf")
+	int_sch := map[string]interface{}{
+		"type": "int",
+	}
+	sch := map[string]interface{}{
+		"parentf": 1,
+		"sort": map[string]interface{}{
+			"slice": true,
+			"type": "string",
+		},
+		"skip": int_sch,
+		"limit": int_sch,
+		"page": int_sch,
+	}
+	ex, err := sanitize.New(sch)
+	if err != nil {
+		panic(err)
+	}
+	dat, err := ex.Extract(inp)
+	if err != nil {
+		panic(err)
+	}
+	for i := range sch {
+		delete(inp, i)
 	}
 	mods := &Mods{}
-	if val, has := inp["sort"]; has {	// Should handle slice.
-		mods.sort = []string{val.(string)}
-		delete(inp, "sort")
+	if dat["parentf"] != nil {
+		d.parentField = dat["parentf"].(string)
 	}
-	if val, has := inp["skip"]; has {
-		skipv, err := strconv.Atoi(val.(string))
-		if err != nil {
-			panic(err)
-		}
-		mods.skip = skipv
-		delete(inp, "skip")
+	if dat["sort"] != nil {
+		mods.sort = convert.ToStringSlice(dat["sort"].([]interface{}))
 	}
-	if val, has := inp["limit"]; has {	// Should handle slice.
-		limitv, err := strconv.Atoi(val.(string))
-		if err != nil {
-			panic(err)
-		}
-		mods.limit = limitv
-		delete(inp, "limit")
+	if dat["skip"] != nil {
+		mods.skip = int(dat["skip"].(int64))
+	}
+	if dat["limit"] != nil {
+		mods.limit = int(dat["limit"].(int64))
 	} else {
 		mods.limit = 20
 	}
-	if val, has := inp["page"]; has {
-		pagev, err := strconv.Atoi(val.(string))
-		if err != nil {
-			panic(err)
-		}
-		mods.skip = (pagev-1)*mods.limit
-		delete(inp, "page")
+	if dat["page"] != nil {
+		page := int(dat["page"].(int64))
+		mods.skip = (page-1)*mods.limit
 	}
-	fmt.Println("MODS", mods)
 	d.mods = mods
-	fmt.Println("D:MODS", d.mods)
+	ev.Fire("ProcessMap", inp)	// We should let the subscriber now the subject name.
 	d.query = toQuery(inp)
-	fmt.Println("DSDD", d, *d)
 	return d
+}
+
+func convAppend(vi []interface{}, i string, x interface{}) []interface{} {
+	if i == "id" {
+		i = "_id"
+		vi = append(vi, convert.DecodeIdP(x.(string)))
+	} else {
+		vi = append(vi, x)
+	}
+	return vi
 }
 
 // map => mongodb query map
@@ -124,20 +141,10 @@ func toQuery(a map[string]interface{}) map[string]interface{} {
 		var vi []interface{}
 		if slice, ok := v.([]interface{}); ok {
 			for _, x := range slice {
-				if i == "id" {
-					i = "_id"
-					vi = append(vi, convert.DecodeIdP(v.(string)))
-				} else {
-					vi = append(vi, x)
-				}
+				vi = convAppend(vi, i, x)
 			}
 		} else {
-			if i == "id" {
-				i = "_id"
-				vi = append(vi, convert.DecodeIdP(v.(string)))
-			} else {
-				vi = append(vi, v)
-			}
+			vi = convAppend(vi, i, v)
 		}
 		if len(vi) > 1 {
 			r[i] = map[string]interface{}{
@@ -150,23 +157,23 @@ func toQuery(a map[string]interface{}) map[string]interface{} {
 	return r
 }
 
-func NewSimple(set iface.Set) *Filter {
+func NewSimple(set iface.Set, ev iface.Event) *Filter {
 	return &Filter{
 		set:			set,
 		parents:		map[string][]bson.ObjectId{},
+		ev:				ev,
 	}
 }
 
-func New(set iface.Set, all map[string]interface{}) *Filter {
-	fmt.Println("ALKLL", all)
-	d := processMap(all)
-	fmt.Println("SHOULD NOT BE NIL", d.mods)
+func New(set iface.Set, all map[string]interface{}, ev iface.Event) *Filter {
+	d := processMap(all, ev)
 	f := &Filter{
 		set:			set,
 		mods:			d.mods,
 		parentField:	d.parentField,
 		query:			d.query,
 		parents:		map[string][]bson.ObjectId{},
+		ev:				ev,
 	}
 	return f
 }
@@ -190,7 +197,7 @@ func (f *Filter) Modifiers() iface.Modifiers {
 }
 
 func (f *Filter) AddQuery(q map[string]interface{}) iface.Filter {
-	query := processMap(q).query
+	query := processMap(q, f.ev).query
 	for i, v := range f.query {
 		query[i] = v
 	}

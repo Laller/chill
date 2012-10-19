@@ -2,6 +2,7 @@ package top
 
 import(
 	"github.com/opesun/chill/frame/context"
+	"github.com/opesun/chill/frame/event"
 	"github.com/opesun/chill/frame/config"
 	"github.com/opesun/chill/frame/mod"
 	"github.com/opesun/chill/frame/misc/scut"
@@ -31,7 +32,7 @@ func (t *Top) buildUser() {
 		t.uni.Dat["_user"] = usr
 	}
 	ins := t.uni.NewModule("users").Instance()
-	ins.Method("BuildUser").Call(ret_rec, filter.NewSimple(set.New(t.uni.Db, "users")))
+	ins.Method("BuildUser").Call(ret_rec, filter.NewSimple(set.New(t.uni.Db, "users"), t.uni.Ev))
 }
 
 type Top struct{
@@ -106,8 +107,8 @@ func (t *Top) validate(noun, verb string, data map[string]interface{}) (map[stri
 	return data, nil
 }
 
-func filterCreator(db *mgo.Database, nouns, input map[string]interface{}, c string) iface.Filter {
-	return filter.New(set.New(db, c), input)
+func filterCreator(db *mgo.Database, ev iface.Event, nouns, input map[string]interface{}, c string) iface.Filter {
+	return filter.New(set.New(db, c), input, ev)
 }
 
 func (t *Top) route() error {
@@ -132,7 +133,7 @@ func (t *Top) route() error {
 		nouns["options"] = opt_def
 	}
 	uni.FilterCreator = func(c string, input map[string]interface{}) iface.Filter {
-		return filterCreator(uni.Db, nouns, input, c)
+		return filterCreator(uni.Db, uni.Ev, nouns, input, c)
 	}
 	desc, err := glue.Identify(uni.Path, nouns, convert.Mapify(uni.Req.Form))
 	if err != nil {
@@ -222,7 +223,7 @@ func New(session *mgo.Session, db *mgo.Database, w http.ResponseWriter, req *htt
 	if config.DBAdmMode {
 		uni.Session = session
 	}
-	ev := context.NewEv(uni, mod.NewModule)
+	ev := event.NewEv(uni, mod.NewModule)
 	uni.Ev = ev
 	uni.NewModule = ev.NewModuleProducer()
 	opt, opt_str, err := queryConfig(uni.Db, req.Host, config.CacheOpt) // Tricky part about the host, see comments at main_model.

@@ -193,3 +193,11 @@ func ListToMap(i ...interface{}) map[string]interface{} {
 	}
 	return r
 }
+
+func ToStringSlice(i ...interface{}) []string {
+	ret := []string{}
+	for _, v := range i {
+		ret = append(ret, v.(string))
+	}
+	return ret
+}
