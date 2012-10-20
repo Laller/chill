@@ -67,11 +67,7 @@ func simpleFulltext(non_split []string) []string {
 	return filterTooShort(slugified, 3)
 }
 
-func (c *C) SaveFulltext(a iface.Filter) error {
-	doc, err := a.FindOne()
-	if err != nil {
-		return err
-	}
+func (c *C) updateFromDoc(doc map[string]interface{}) map[string]interface{} {
 	non_split := toStringRecursively(doc)
 	fullt := simpleFulltext(non_split)
 	upd := map[string]interface{}{
@@ -79,7 +75,24 @@ func (c *C) SaveFulltext(a iface.Filter) error {
 			"fulltext": fullt,
 		},
 	}
+	return upd
+}
+
+func (c *C) SaveFulltext(a iface.Filter) error {
+	doc, err := a.FindOne()
+	if err != nil {
+		return err
+	}
+	upd := c.updateFromDoc(doc)
 	return a.Update(upd)
+}
+
+func (c *C) RegenerateFulltext(a iface.Filter) error {
+	cb := func(doc map[string]interface{}, g iface.Grabbed) error {
+		upd := c.updateFromDoc(doc)
+		return g.Update(upd)
+	}
+	return a.Iterate(cb)
 }
 
 func GenerateKeywords(s string) []string {

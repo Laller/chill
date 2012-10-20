@@ -58,6 +58,7 @@ type Filter interface {
 	AddParents(string, []bson.ObjectId)
 	Modifiers() Modifiers
 	Count()	(int, error)
+	Iterate(func(map[string]interface{}, Grabbed) error) error
 	// --
 	FindOne() (map[string]interface{}, error)
 	Find() ([]interface{}, error)
@@ -67,6 +68,11 @@ type Filter interface {
 	UpdateAll(map[string]interface{}) (int, error)
 	Remove() error
 	RemoveAll() (int, error)
+}
+
+type Grabbed interface {
+	Update(map[string]interface{}) error
+	Remove() error
 }
 
 type Modifiers interface {

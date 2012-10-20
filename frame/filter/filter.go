@@ -5,6 +5,7 @@ import(
 	iface "github.com/opesun/chill/frame/interfaces"
 	"labix.org/v2/mgo/bson"
 	"github.com/opesun/chill/frame/misc/convert"
+	"github.com/opesun/chill/frame/grabbed"
 	"github.com/opesun/sanitize"
 )
 
@@ -57,7 +58,7 @@ func (f *Filter) Reduce(a ...iface.Filter) (iface.Filter, error) {
 		if err != nil {
 			return &Filter{}, err
 		}
-		v.AddParents("_"+prev.Subject(), ids)
+		v.AddParents("_" + prev.Subject(), ids)
 		prev = v
 	}
 	return prev, nil
@@ -241,7 +242,6 @@ func (f *Filter) FindOne() (map[string]interface{}, error) {
 }
 
 func (f *Filter) Find() ([]interface{}, error) {
-	q := mergeQuery(f.query, f.parents)
 	if f.mods.skip != 0 {
 		f.set.Skip(f.mods.skip)
 	}
@@ -251,7 +251,28 @@ func (f *Filter) Find() ([]interface{}, error) {
 	if len(f.mods.sort) > 0 {
 		f.set.Sort(f.mods.sort...)
 	}
+	q := mergeQuery(f.query, f.parents)
 	return f.set.Find(q)
+}
+
+func (f *Filter) Iterate(callback func(map[string]interface{}, iface.Grabbed) error) error {
+	f.set.Limit(0)
+	q := mergeQuery(f.query, f.parents)
+	docs, err := f.set.Find(q)
+	if err != nil {
+		return err
+	}
+	for _, v := range docs {
+		doc := v.(map[string]interface{})
+		grab := grabbed.New(f.set, doc["_id"].(bson.ObjectId))
+		// Should we delete the id?
+		// delete(doc, "_id")
+		err := callback(doc, grab)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (f *Filter) Insert(d map[string]interface{}) error {
