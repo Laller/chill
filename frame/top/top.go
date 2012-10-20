@@ -108,7 +108,7 @@ func (t *Top) validate(noun, verb string, data map[string]interface{}) (map[stri
 }
 
 func filterCreator(db *mgo.Database, ev iface.Event, nouns, input map[string]interface{}, c string) iface.Filter {
-	return filter.New(set.New(db, c), input, ev)
+	return filter.New(set.New(db, c), ev, input)
 }
 
 func (t *Top) route() error {

@@ -26,11 +26,13 @@ func (m *Mods) Sort() []string {
 	return m.sort
 }
 
+// Parents are separated from the query, because they are not used only at querying (FindOne, Find, Update, UpdateAll, Remove, RemoveAll),
+// but at Insert too.
 type Filter struct {
 	set				iface.Set
 	mods			*Mods
-	parentField		string
-	parents			map[string][]bson.ObjectId
+	parentField		map[string]string				// collection_name => fieldname, being used at reduction, shortcoming: 1 collection to 1 fieldname only...
+	parents			map[string][]bson.ObjectId		// fieldnames => []bson.ObjectId
 	query			map[string]interface{}
 	ev				iface.Event
 }
@@ -55,7 +57,7 @@ func (f *Filter) Reduce(a ...iface.Filter) (iface.Filter, error) {
 		if err != nil {
 			return &Filter{}, err
 		}
-		v.AddParents(prev.Subject(), ids)
+		v.AddParents("_"+prev.Subject(), ids)
 		prev = v
 	}
 	return prev, nil
@@ -79,7 +81,7 @@ func processMap(inp map[string]interface{}, ev iface.Event) *data {
 		"type": "int",
 	}
 	sch := map[string]interface{}{
-		"parentf": 1,
+		//"parentf": 1,
 		"sort": map[string]interface{}{
 			"slice": true,
 			"type": "string",
@@ -100,9 +102,9 @@ func processMap(inp map[string]interface{}, ev iface.Event) *data {
 		delete(inp, i)
 	}
 	mods := &Mods{}
-	if dat["parentf"] != nil {
-		d.parentField = dat["parentf"].(string)
-	}
+	//if dat["parentf"] != nil {
+	//	d.parentField = dat["parentf"].(string)
+	//}
 	if dat["sort"] != nil {
 		mods.sort = convert.ToStringSlice(dat["sort"].([]interface{}))
 	}
@@ -169,12 +171,12 @@ func NewSimple(set iface.Set, ev iface.Event) *Filter {
 	}
 }
 
-func New(set iface.Set, all map[string]interface{}, ev iface.Event) *Filter {
+func New(set iface.Set, ev iface.Event, all map[string]interface{}) *Filter {
 	d := processMap(all, ev)
 	f := &Filter{
 		set:			set,
 		mods:			d.mods,
-		parentField:	d.parentField,
+		//parentField:	d.parentField,
 		query:			d.query,
 		parents:		map[string][]bson.ObjectId{},
 		ev:				ev,
@@ -277,11 +279,6 @@ func (f *Filter) Count() (int, error) {
 }
 
 func (f *Filter) AddParents(fieldname string, a []bson.ObjectId) {
-	if len(f.parentField) > 0 {
-		fieldname = f.parentField
-	} else {
-		fieldname = "_"+fieldname
-	}
 	slice, ok := f.parents[fieldname]
 	if !ok {
 		f.parents[fieldname] = []bson.ObjectId{}
